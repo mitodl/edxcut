@@ -86,6 +86,23 @@ Note that you may need to change the `url_name` for the first three
 cases, which have a edx-studio-specific hexstring, if using a different VM
 instance.
 
+Usage
+-----
+
+Here's how to run unit tests on a course on edx.org:
+
+1. Generate course unit tests YAML file.  For example, with latex2edx:
+
+    latex2edx -d course_directory --output-course-unit-tests my_tests.yaml -m the_course.tex
+    
+2. Run edxcut, adding specifications for the course ID, username, and login password:
+
+    edxcut  -s https://courses.edx.org \
+    	    -u my-course-tester@myorg.org \
+	    -p my-password \
+            -c course-v1:MYx+NUM+SEM \
+            test my_tests.yaml
+
 Installation
 ------------
 
