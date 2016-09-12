@@ -14,5 +14,14 @@ tests:
   - url_name: 75f9562c77bc4858b61f907bb810d974
     responses: [ 43.141, 4500, 9 ]
     expected: incorrect
+  - url_name: Sample_Algebraic_Problem
+    responses: [A*x^2 + sqrt(y)]
+    expected: correct
+  - url_name: Sample_ChemFormula_Problem
+    responses: [H2SO4  -> H^+ + 2 HSO4^-]
+    expected: incorrect
+  - url_name: Sample_ChemFormula_Problem
+    responses: [H2SO4  -> H^+ + HSO4^-]
+    expected: correct
 
 

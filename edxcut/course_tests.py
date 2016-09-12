@@ -42,9 +42,9 @@ class AnswerBoxUnitTest(object):
                     setattr(self, field, test_spec[field])
             self.box_indexes = test_spec.get('box_indexes', self.box_indexes)
         if not isinstance(self.responses, list):
-            raise Exception("[AnswerBoxUnitTes] illegel responses=%s -- must be list" % self.responses)
+            raise Exception("[AnswerBoxUnitTest] illegal responses=%s -- must be list" % self.responses)
         if isinstance(self.expected, list) and not len(self.expected)==len(self.responses):
-            raise Exception("[AnswerBoxUnitTes] mismatched lengths responses=%s ; expected=%s" % (self.responses, self.expected))
+            raise Exception("[AnswerBoxUnitTest] mismatched lengths responses=%s ; expected=%s" % (self.responses, self.expected))
         if not self.box_indexes:
             self.box_indexes = zip(range(len(self.responses)), [0]*len(self.responses))
         if not len(self.box_indexes)==len(self.responses):

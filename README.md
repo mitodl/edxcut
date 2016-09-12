@@ -1,2 +1,67 @@
-# edxcut
-edx course unit tester
+edxcut
+======
+
+edxcut = edX Course Unit Tests
+
+This is an open source package for performing unit tests of answer box
+grading correctness, for a live running open edX course instance.
+
+edxcut accepts a course unit test specification file (in YAML format),
+and interacts with the edX course instance, mimicing a live learner,
+via direct calls to the edX xblock APIs for problem checking and the
+instructor dashboard, for resetting problem attempts.  Test cases
+specify inputs, and whether the expected graded return should be
+correct or incorrect, for each case.
+
+The course unit tests file can be produced manually, or by digesting
+the course XML, or automatically, during compilation using
+[latex2edx](https://github.com/mitocw/latex2edx).  When using
+latex2edx, you can specify multiple test cases within the `\edXabox`
+macro, including both expected correct and incorrect cases.
+
+Example tests file
+------------------
+
+Below is an [example tests YAML file](https://github.com/mitodl/edxcut/blob/master/test_data/test_demo_course.yaml)
+which can be run to test some problems in the demo course provided with the [edX fullstack](https://openedx.atlassian.net/wiki/display/OpenOPS/Running+Fullstack) (dogwood release) virtualbox VM:
+
+```YAML
+config:
+  course_id: course-v1:edX+DemoX+Demo_Course
+  site_base_url: http://192.168.33.10
+  username: staff@example.com
+  password: edx
+
+tests:
+  - url_name: 75f9562c77bc4858b61f907bb810d974
+    responses: [ 43.141, 4500, 5 ]
+    expected: [incorrect, correct, correct]
+  - url_name: 75f9562c77bc4858b61f907bb810d974
+    responses: [ 43.141, 4500, 9 ]
+    expected: [incorrect, correct, incorrect]
+  - url_name: 75f9562c77bc4858b61f907bb810d974
+    responses: [ 43.141, 4500, 9 ]
+    expected: incorrect
+  - url_name: Sample_Algebraic_Problem
+    responses: [A*x^2 + sqrt(y)]
+    expected: correct
+  - url_name: Sample_ChemFormula_Problem
+    responses: [H2SO4  -> H^+ + 2 HSO4^-]
+    expected: incorrect
+  - url_name: Sample_ChemFormula_Problem
+    responses: [H2SO4  -> H^+ + HSO4^-]
+    expected: correct
+```
+
+using this command line:
+
+    edxcut test test_data/test_demo_course.yaml
+
+Note that you may need to change the `url_name` for the first three
+cases, which have a edx-studio-specific hexstring, if using a different VM
+instance.
+
+Unit tests
+----------
+
+This package includes unit tests for build testing.
