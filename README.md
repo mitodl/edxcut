@@ -97,11 +97,13 @@ Here's how to run unit tests on a course on edx.org:
     
 2. Run edxcut, adding specifications for the course ID, username, and login password:
 
+```
     edxcut  -s https://courses.edx.org \
     	    -u my-course-tester@myorg.org \
 	    -p my-password \
             -c course-v1:MYx+NUM+SEM \
             test my_tests.yaml
+```
 
 Installation
 ------------
