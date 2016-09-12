@@ -100,7 +100,7 @@ Here's how to run unit tests on a course on edx.org:
 ```
     edxcut  -s https://courses.edx.org \
     	    -u my-course-tester@myorg.org \
-	    -p my-password \
+            -p my-password \
             -c course-v1:MYx+NUM+SEM \
             test my_tests.yaml
 ```
