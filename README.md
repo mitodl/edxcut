@@ -3,8 +3,18 @@ edxcut
 
 edxcut = edX Course Unit Tests
 
-This is an open source package for performing unit tests of answer box
-grading correctness, for a live running open edX course instance.
+Have you ever had your open edX course unexpectedly break, due to some
+change in how the edX platform does grading, or due to some code
+change in a custom response grading library?
+
+Would you like to be able to automatically verify that *all* the
+auto-graded problems in your edX course are functioning as expected,
+without having to manually click through all the problems and remember
+test cases to enter?
+
+__edxcut__ is an open source package for performing automated unit
+tests of answer box grading correctness, across all problems, in a
+live, open edX course instance.
 
 edxcut accepts a course unit test specification file (in YAML format),
 and interacts with the edX course instance, mimicing a live learner,
