@@ -105,6 +105,111 @@ Here's how to run unit tests on a course on edx.org:
             test my_tests.yaml
 ```
 
+Course Unit Tests File
+----------------------
+
+The course unit tests file should be in [YAML
+format](https://en.wikipedia.org/wiki/YAML).  It may specify `config`
+parameters, for the `course_id`, `site_base_url`, `username`, and `password`, e.g.:
+
+```YAML
+config:
+  course_id: course-v1:edX+DemoX+Demo_Course
+  site_base_url: http://192.168.33.10
+  username: staff@example.com
+  password: edx
+```
+
+The tests file should also specify one or more `tests`.  Each test
+should give at least the `url_name`, `responses`, and `expected`
+grader output.  For example:
+
+```YAML
+  - url_name: Sample_Algebraic_Problem
+    responses: [A*x^2 + sqrt(y)]
+    expected: correct
+```
+
+Note that `responses` should be a list.  `expected` should either be a
+string, `correct` or `incorrect`, or it may be a list (of the same
+length as `responses`, of those two strings.
+
+Each test may also specify a `name`.
+
+And each test may also specify `box_indexes`, which are pairs of (x,y)
+coordinates for input boxes.  This is useful when there is more than
+one question (ie answer box) for a given problem.  The coordinates are
+used to construct the input box IDs, which is of the form
+input_<url_name>_<x>_<y>, where <x> indexes which `\abox` (aka
+`<*response>`) the input is, and <y> indexes which input element it
+is, within a given abox (for aboxes with multiple input boxes).  This
+list should have the same length as `responses`.  For example:
+
+```YAML
+tests:
+- box_indexes:
+  - [0, 0]
+  - [1, 0]
+  - [2, 0]
+  - [3, 0]
+  - [4, 0]
+  expected: [incorrect, incorrect, incorrect, incorrect, incorrect]
+  name: (Simple quantum gate identities) s12-wk1-gates/test_1
+  responses: [Z, I, Y, Z, I]
+  url_name: s12-wk1-gates
+```
+
+Generating Tests with latex2edx
+-------------------------------
+
+Here are some example `\edXabox` statements which may be used with
+[latex2edx](https://github.com/mitocw/latex2edx), to specify answer
+box unit tests:
+
+```tex
+\edXabox{type='custom' size=10 expect="I" cfn=check_paulis inline="1" test_fail="Z"}
+
+\edXabox{type=option options="true","false" expect="false" inline="1"}
+
+\edXabox{type=symbolic size=10 expect="7"  inline="1"}
+
+\edXabox{type=symbolic size=10 expect="7"  inline="1" test_pass="7"}
+
+\edXabox{type=symbolic size=10 expect="7"  inline="1" test_pass="7" test_fail="9"}
+```
+
+This is an more complex example, where the grader is a custom python
+script (not shown), that knows the expected answer; here, `test_pass`
+is necessary since `expect` does not provide an answer useful for the
+unit test:
+
+```tex
+\edXabox{type="custom" 
+  size=30 
+  expect="See solutions"  
+  options="expect=(Qubit('00')+Qubit('01'))/2"
+  cfn=check_qcircuit_output 
+  hints='myhints'
+  test_pass="H(0),H(1)"
+  inline="1"
+}
+```
+
+Note that the latex2edx correctly handles the case when there are
+multiple answer boxes in a single problem, e.g.:
+
+```tex
+\begin{edXproblem}{A problem with two aboxes}{url_name="a_problem"}
+
+\edXabox{type="option" options="red","green","blue" expect="red"}
+
+\edXabox{type="custom" expect="42" cfn="mytest"}
+\end{edXproblem}
+```
+
+Such multi-box problems properly generate test cases with
+`box_indexes` set to specify the (x,y) coordinates of the input boxes.
+
 Installation
 ------------
 
