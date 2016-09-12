@@ -57,9 +57,29 @@ using this command line:
 
     edxcut test test_data/test_demo_course.yaml
 
+to get results like this:
+
+    ======================================================================
+    Running tests from test_data/test_demo_course.yaml
+    [CourseUnitTestSet] Loaded 6 answer box unit tests from test_data/test_demo_course.yaml
+    ============================================================ Running 6 tests
+    Test 1: OK
+    Test 2: OK
+    Test 3: OK
+    Test 4: OK
+    Test 5: OK
+    Test 6: OK
+    ======================================== Tests done
+    6 total tests, 6 passed, 0 failed
+
 Note that you may need to change the `url_name` for the first three
 cases, which have a edx-studio-specific hexstring, if using a different VM
 instance.
+
+Installation
+------------
+
+    pip install -e git+https://github.com/mitodl/edxcut.git#egg=edxcut
 
 Unit tests
 ----------
