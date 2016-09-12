@@ -23,6 +23,7 @@ class edXapi(object):
         self.BASE = base
         self.verbose = verbose
         self.course_id = course_id
+        self.username = username
         self.login(username, password)
         self.xblock_csrf = None
 
@@ -154,23 +155,33 @@ class edXapi(object):
     def instructor_dashboard_url(self):
         return '%s/courses/%s/instructor' % (self.BASE, self.course_id)
 
-    def do_reset_student_attempts(self, url_name, username):
+    def do_instructor_dashboard_action(self, url, data):
+        ret = self.ses.post(url, data=data, headers=self.headers)
+        if not ret.status_code==200:
+            ret = self.ses.get(url, params=data, headers=self.headers)
+        if self.verbose:
+            print "[edxapi] do_instructor_dashboard_action url=%s, return=%s" % (url, ret)
+        return ret
+
+    def do_reset_student_attempts(self, url_name, username=None):
         '''
         Reset student attempts
         '''
+        username = username or self.username
         block_id = self.problem_block_id(url_name)
         url = "%s/api/reset_student_attempts" % (self.instructor_dashboard_url)
         data = {'problem_to_reset': block_id,
                 'unique_student_identifier': username,
                 'delete_module': False,
             }
-        ret = self.ses.get(url, params=data, headers=self.headers)
-        if self.verbose:
-            print "[edxapi] do_reset_student_attempts return=%s" % ret
+        ret = self.do_instructor_dashboard_action(url, data)
+        if not ret.status_code==200:
+            data = {'failed': ret, 'url': url, 'params': data}
+            return data
         try:
             data = ret.json()
         except Exception as err:
-            data = {'failed': ret}
+            data = {'failed': ret, 'url': url, 'params': data}
         return data
 
     def signup_staff(self, username, role='staff'):
@@ -179,7 +190,7 @@ class edXapi(object):
                   'rolename': role,
                   'action': 'allow',
               }
-        r1 = self.ses.get(url, params=params, headers=self.headers)
+        r1 = self.do_instructor_dashboard_action(url, params)
         if self.verbose:
             print "[edXapi] instructor dashboard return = ", r1.status_code
     
@@ -189,7 +200,7 @@ class edXapi(object):
                   'rolename': role,
                   'action': 'allow',
               }
-        r1 = self.ses.get(url, params=params, headers=self.headers)
+        r1 = self.do_instructor_dashboard_action(url, params)
         if self.verbose:
             print "[edXapi] instructor dashboard return = ", r1.status_code
 
@@ -206,12 +217,11 @@ class edXapi(object):
 
         for bid in blocks:
             url = "%s/api/reset_student_attempts" % self.instructor_dashboard_url
-            r2 = self.ses.get(url, params={'unique_student_identifier': username,
-                                           'problem_to_reset': bid,
-                                           'delete_module': True,
-                                       },
-                              headers=self.headers
-                          )
+            params = {'unique_student_identifier': username,
+                      'problem_to_reset': bid,
+                      'delete_module': True,
+            }
+            r2 = self.do_instructor_dashboard_action(url, params)
             if not r2.status_code==200:
                 print "[edXapi] Failed to delete student %s state for block %s" % (username, block)
                 print "="*60

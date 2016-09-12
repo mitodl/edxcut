@@ -112,7 +112,9 @@ class CourseUnitTester(object):
             ntries += 1
             data = self.ea.do_xblock_check_problem(url_name, responses, box_indexes)
             if 'success' in data and "Please refresh your page" in data['success']:
-                self.ea.do_reset_student_attempts(url_name, self.username)
+                ret = self.ea.do_reset_student_attempts(url_name)
+                if not (isinstance(ret, dict) and 'student' in ret):
+                    raise Exception("[CourseUnitTester] Failed to reset attempts!  return=%s" % ret)
             else:
                 got_eval = True
             if ntries > 10:
