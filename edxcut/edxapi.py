@@ -107,7 +107,8 @@ class edXapi(object):
         data = self.get_xblock_json_response("problem_get", url_name)
         return data
 
-    def make_response_dict(self, url_name, responses, prefix="input", box_indexes=None):
+    def make_response_dict(self, url_name, responses, prefix="input", box_indexes=None,
+                           x_index_offset=2, y_index_offset=1):
         '''
         Given an ordered list of responses to a problem (ie answer box submissions), return a dict which
         has appropriate keys ("input_<url_name>_<num>_<index>") for each response, to be used in
@@ -127,8 +128,6 @@ class edXapi(object):
         '''
         if not isinstance(responses, list):
             responses = [responses]
-        x_index_offset = 2
-        y_index_offset = 1
         box_indexes = box_indexes or zip(range(len(responses)), [0]*len(responses))
         return OrderedDict([ ("%s_%s_%d_%d" % (prefix, url_name, x + x_index_offset, y + y_index_offset) , val) 
                              for ((x,y), val) in zip(box_indexes, responses)])

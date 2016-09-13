@@ -66,7 +66,8 @@ class CourseUnitTester(object):
             cnt += 1
             ret = self.test_problem(abutest=test)
             if ret['ok']:
-                print "Test %d: OK" % cnt
+                name = "[%s]" % test.name if test.name else ""
+                print "Test %d: OK %s" % (cnt, name)
                 nok += 1
             else:
                 print "Test %s: Failure! url_name=%s, responses=%s, expected=%s" % (test.name,
@@ -82,6 +83,64 @@ class CourseUnitTester(object):
                              'n_passed': nok,
                              'n_failed': nbad,
                              }
+
+    def make_correctness_list_from_xml(self, xml, status_names):
+        '''
+        Extract whether a given response was correct or incorrect, from the content XML 
+        returned for a problem, from the grader.
+
+        Return cottectness list (a list of strings).
+        '''
+        status_divs = []
+        correctness_list = []
+        for sn, response in status_names.items():
+            correctness = None
+            label_type = None
+            sn_orig = sn
+            #
+            # This is the diciest part of the edxcut process, because the edX xblock API
+            # and the edX CAPA responsetypes interface is not well defined here.
+            #
+            # We need to extract, from the XML content returned by the problem grader,
+            # whether the learner's response was graded "correct" or "incorrect".  For
+            # multiple choce problems, how edX has encoded this information has changed
+            # significantly over the months, largely because of the need to accommodate
+            # accessibility constraints.  Beyond this, even the format of the html element
+            # ID's has changed, eg from input_.... to status_... to ...-label.
+            #
+            sx = xml.find('.//div[@id="%s"]' % sn)		# text line input problems
+            if sx is None:
+                sx = xml.find('.//span[@id="%s"]' % sn)	# multiple choice problems, unanswered
+            if sx is None:
+                sn = "input_%s_%s" % (sn_orig[7:], response)	# <label for="input_a0effb954cca4759994f1ac9e9434bf4_3_1_choice_2" class="choicegroup_correct">
+                sx = xml.find('.//label[@for="%s"]' % sn)	# multiple choice problems
+                label_type = "choice input"
+            if sx is None:
+                # <label id="URL_NAME_2_1-choice_5-label" class="response-label field-label label-inline choicegroup_correct">
+                sn = "%s-%s-label" % (sn_orig[7:], response)
+                sx = xml.find('.//label[@id="%s"]' % sn)	# multiple choice problems
+            if sx is None:
+                contents = etree.tostring(xml)
+                raise Exception("[CourseUnitTester] failed to find status in content for %s,"
+                                "contents=%s" % (sn, contents))
+            if correctness is None:
+                try:
+                    correctness = sx.get('class').strip()
+                except Exception as err:
+                    contents = etree.tostring(xml)
+                    raise Exception("[CourseUnitTester] failed to construct correctness, err=%s, "
+                                    "with status_name=%s, contents=%s" % (err, sn, contents))
+                if ' ' in correctness:
+                    for cstr in correctness.split(' '):
+                        if 'correct' in cstr:
+                            correctness = cstr
+                correctness = correctness.replace('choicegroup_', '')
+                correctness = correctness.replace('status', '')
+                correctness = correctness.replace('inline', '')
+                correctness = correctness.strip()
+            correctness_list.append(correctness)
+            status_divs.append(sx)
+        return correctness_list
 
     def test_problem(self, url_name=None, responses=None, expected=None, box_indexes=None, abutest=None):
         '''
@@ -140,34 +199,42 @@ class CourseUnitTester(object):
             xml = etree.parse(StringIO(data['contents']), parser)
             # <div class="correct " id="status_75f9562c77bc4858b61f907bb810d974_4_1">
             status_names = self.ea.make_response_dict(url_name, responses, prefix="status", box_indexes=box_indexes)
-            status_divs = []
-            correctness_list = []
-            for sn, response in status_names.items():
-                correctness = None
-                sx = xml.find('.//div[@id="%s"]' % sn)		# text line input problems
-                if sx is None:
-                    sx = xml.find('.//span[@id="%s"]' % sn)	# multiple choice problems, unanswered
-                if sx is None:
-                    sn = "input_%s_%s" % (sn[7:], response)	# <label for="input_a0effb954cca4759994f1ac9e9434bf4_3_1_choice_2" class="choicegroup_correct">
-                    sx = xml.find('.//label[@for="%s"]' % sn)	# multiple choice problems
-                if sx is None:
-                    raise Exception("[CourseUnitTester] failed to find status in content for %s, contents=%s" % (sn, data['contents']))
-                if correctness is None:
+            if self.verbose > 3:
+                print "    stats_names=%s" % status_names
+            try:
+                correctness_list = self.make_correctness_list_from_xml(xml, status_names)
+            except Exception as err:
+                if "failed to find status in content" in str(err):
+                    # try reducing x index offset from 2 to 1 (some versions of edx platform index from 3, some from 2)
+                    # for multiple choice problems.
+                    if self.verbose:
+                        print ("[CourseUnitTester] test_problem: warning, %s, with status_names=%s; "
+                               "retrying with x index offset = 1" % (str(err), status_names))
+                    status_names = self.ea.make_response_dict(url_name, responses, prefix="status",
+                                                              box_indexes=box_indexes,
+                                                              x_index_offset=1)
                     try:
-                        correctness = sx.get('class').strip()
+                        correctness_list = self.make_correctness_list_from_xml(xml, status_names)
                     except Exception as err:
-                        raise Exception("[CourseUnitTester] failed to construct correctness, err=%s, with status_name=%s, contents=%s" % (err, sn, data['contents']))
-                    correctness = correctness.replace('choicegroup_', '')
-                    correctness = correctness.replace('status', '')
-                    correctness = correctness.replace('inline', '')
-                    correctness = correctness.strip()
-
-                correctness_list.append(correctness)
-                status_divs.append(sx)
+                        print "[CourseUnitTester] test_problem, error with status_names=%s, err=%s" % (status_names, err)
+                        print "--> Skipping problem!"
+                        return {'ok': False,
+                                'data': None,
+                                'xml': None,
+                                'correctness_list': None,
+                                'overall_correctnes': None,
+                                'responses': responses,
+                                'expected': expected,
+                        }
+                    sys.stdout.flush()
+                else:
+                    raise
+                        
         else:
             correctness_list = []
             print "  --> oops, empty correctness_list; url=%s, ret=%s" % (self.ea.jump_to_url(url_name), data)
             xml = None
+
         if 'Error' in data['success']:
             isok = (expected=="error")
         elif isinstance(expected, list):

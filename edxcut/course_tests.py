@@ -41,6 +41,8 @@ class AnswerBoxUnitTest(object):
                 else:
                     setattr(self, field, test_spec[field])
             self.box_indexes = test_spec.get('box_indexes', self.box_indexes)
+            if 'name' in test_spec:
+                self.name = test_spec['name']
         if not isinstance(self.responses, list):
             raise Exception("[AnswerBoxUnitTest] illegal responses=%s -- must be list" % self.responses)
         if isinstance(self.expected, list) and not len(self.expected)==len(self.responses):
