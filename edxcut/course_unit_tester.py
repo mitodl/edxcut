@@ -63,6 +63,8 @@ class CourseUnitTester(object):
         nbad = 0
         all_url_names = []
         print "="*60 + " Running %s tests" % self.cutset.ntests
+        print "Tests using site %s and course %s" % (self.site_base_url, self.course_id)
+        print "-" * 60
         for test in self.cutset.tests:
             cnt += 1
             if test.url_name not in all_url_names:
