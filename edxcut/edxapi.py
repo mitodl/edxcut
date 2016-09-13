@@ -84,11 +84,13 @@ class edXapi(object):
         try:
             data = ret.json()
         except Exception as err:
-            raise Exception("[edXapi] get_xblock_json_response failed to get JSON format reponse for handler %s url_name %s, err %s, ret text=%s" % (handler,
-                                                                                                                                                     url_name,
-                                                                                                                                                     err,
-                                                                                                                                                     ret.text))
-            self.ret = ret
+            raise Exception("[edXapi] get_xblock_json_response failed to get JSON format reponse "
+                            "for handler %s url_name %s, err %s, ret code=%s, text=%s" % (handler,
+                                                                                          url_name,
+                                                                                          err,
+                                                                                          ret.status_code,
+                                                                                          ret.text))
+        self.ret = ret
         return data
 
     def do_xblock_show_answer(self, url_name):

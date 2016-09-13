@@ -110,7 +110,22 @@ class CourseUnitTester(object):
         ntries = 0
         while not got_eval:
             ntries += 1
-            data = self.ea.do_xblock_check_problem(url_name, responses, box_indexes)
+            try:
+                data = self.ea.do_xblock_check_problem(url_name, responses, box_indexes)
+            except Exception as err:
+                print "[CourseUnitTester] Failed testing %s (at %s), err=%s" % (url_name,
+                                                                                self.ea.problem_url(url_name),
+                                                                                err)
+                print "--> Skipping problem!"
+                return {'ok': False,
+                        'data': None,
+                        'xml': None,
+                        'correctness_list': None,
+                        'overall_correctnes': None,
+                        'responses': responses,
+                        'expected': expected,
+                }
+                sys.stdout.flush()
             if 'success' in data and "Please refresh your page" in data['success']:
                 ret = self.ea.do_reset_student_attempts(url_name)
                 if not (isinstance(ret, dict) and 'student' in ret):
