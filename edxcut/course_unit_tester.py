@@ -61,9 +61,12 @@ class CourseUnitTester(object):
         cnt = 0
         nok = 0
         nbad = 0
+        all_url_names = []
         print "="*60 + " Running %s tests" % self.cutset.ntests
         for test in self.cutset.tests:
             cnt += 1
+            if test.url_name not in all_url_names:
+                all_url_names.append(test.url_name)
             ret = self.test_problem(abutest=test)
             if ret['ok']:
                 name = "[%s]" % test.name if test.name else ""
@@ -77,11 +80,13 @@ class CourseUnitTester(object):
                 print "   --> got correctness_list=%s" % ret['correctness_list']
                 nbad += 1
             sys.stdout.flush()
+        nprobs = len(all_url_names)
         print "="*40 + " Tests done"
-        print "%s total tests, %s passed, %s failed" % (cnt, nok, nbad)
+        print "%s total tests, on %s unique problems; %s passed, %s failed" % (cnt, nprobs, nok, nbad)
         self.test_results = {'n_tests_ran': cnt,
                              'n_passed': nok,
                              'n_failed': nbad,
+                             'n_problems': nprobs,
                              }
 
     def make_correctness_list_from_xml(self, xml, status_names):

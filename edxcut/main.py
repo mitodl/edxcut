@@ -5,6 +5,7 @@ Also can be used to create unit tests, from an xbundle file.
 
 import argparse
 from course_unit_tester import CourseUnitTester
+from collections import defaultdict
 
 #-----------------------------------------------------------------------------
 
@@ -46,8 +47,13 @@ Examples:
         args = parser.parse_args(arglist)
     
     if args.cmd=="test":
+        counts = defaultdict(int)
+        if len(args.ifn) > 1:
+            print "="*70
+            print "Running tests from %d files" % len(args.ifn)
         for fn in args.ifn:
-            print "="*70 + "  Running tests from %s " % fn
+            print "="*70
+            print "==>  Running tests from %s " % fn
             cut = CourseUnitTester(site_base_url=args.site_base_url,
                                    username=args.username,
                                    password=args.password,
@@ -55,6 +61,15 @@ Examples:
                                    course_id=args.course_id,
                                    cutfn=fn)
             cut.run_all_tests()
+            for k,v in cut.test_results.items():
+                counts[k] += v
+        print "="*70
+        print "Ran tests from %d files" % len(args.ifn)
+        print ("Overall: %s total tests, on %s unique problems; "
+               "%s passed, %s failed" % (counts['n_tests_ran'],
+                                         counts['n_problems'],
+                                         counts['n_passed'],
+                                         counts['n_failed']))
 
     elif args.cmd=="make_tests":
         import make_tests
