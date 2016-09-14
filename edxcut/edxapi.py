@@ -7,6 +7,8 @@ import os, sys
 import time
 import requests
 import pytest
+import json
+import argparse
 
 from collections import OrderedDict
 
@@ -156,13 +158,70 @@ class edXapi(object):
     def instructor_dashboard_url(self):
         return '%s/courses/%s/instructor' % (self.BASE, self.course_id)
 
-    def do_instructor_dashboard_action(self, url, data):
+    def get_instructor_dashboard_csrf(self):
+        url = '%s#view-data_download' % self.instructor_dashboard_url
+        ret = self.ses.get(url)
+        csrf = self.ses.cookies['csrftoken']
+        return csrf
+
+    def do_instructor_dashboard_action(self, url, data=None):
+        if not self.xblock_csrf:
+            self.xblock_csrf = self.get_instructor_dashboard_csrf()
+            self.headers['X-CSRFToken'] = self.xblock_csrf
+            if self.verbose:
+                print "Got csrf=%s from instructor dashboard" % self.xblock_csrf
+        data = data or {}
         ret = self.ses.post(url, data=data, headers=self.headers)
         if not ret.status_code==200:
             ret = self.ses.get(url, params=data, headers=self.headers)
         if self.verbose:
             print "[edxapi] do_instructor_dashboard_action url=%s, return=%s" % (url, ret)
         return ret
+
+    def list_reports_for_download(self):
+        '''
+        List reports available for download from instructor dashboard
+        '''
+        # url = "%s/#view-data_download" % self.instructor_dashboard_url
+        url = "%s/api/list_report_downloads" % (self.instructor_dashboard_url)
+        ret = self.do_instructor_dashboard_action(url)
+        try:
+            data = ret.json()
+        except Exception as err:
+            return ret
+        return data
+
+    def download_student_state_reports(self):
+        '''
+        Download all the student state reports available.
+        These are reports with names of the form "<course_id>_student_state_from_<module_id>_<datetime>.csv"
+        '''
+        downloads = self.list_reports_for_download()['downloads']
+        cnt = 0
+        for dinfo in downloads:
+            cnt += 1
+            name = dinfo['name']
+            if '_student_state_from_' in name:
+                url = dinfo['url']
+                ret = self.ses.get(url)
+                ofn = 'DATA/%s' % name
+                with open(ofn, 'w') as ofp:
+                    ofp.write(ret.text)
+                print "[%d] Retrieved %s (%d bytes)" % (cnt, ofn, len(ret.text))
+                sys.stdout.flush()
+
+    def enqueue_request_for_problem_responses(self, module_id):
+        '''
+        Submit queued request for problem responses
+        '''
+        url = "%s/api/get_problem_responses" % (self.instructor_dashboard_url)
+        data = {'problem_location': module_id}
+        ret = self.do_instructor_dashboard_action(url, data)
+        try:
+            data = ret.json()
+        except Exception as err:
+            return ret
+        return data
 
     def do_reset_student_attempts(self, url_name, username=None):
         '''
@@ -268,3 +327,76 @@ def test_xb3(eapi):
     data = ea.do_xblock_get_problem(url_name)
     print data
     assert (len(data['html']))
+
+#-----------------------------------------------------------------------------
+
+class VAction(argparse.Action):
+    def __call__(self, parser, args, values, option_string=None):
+        curval = getattr(args, self.dest, 0) or 0
+        values=values.count('v')+1
+        setattr(args, self.dest, values + curval)
+
+#-----------------------------------------------------------------------------
+
+def CommandLine(args=None, arglist=None):
+    '''
+    edxapi command line.  Accepts args, to allow for simple unit testing.
+    '''
+    help_text = """usage: %prog [command] [args...] ...
+
+Commands:
+
+list_reports               - list reports available for download in the instructor dashboard
+get_problem_responses      - enqueue request for problem responses; specify module_id (as block_id)
+                             or use --module-id-from-csv 
+download_student_state     - download problem response (aka student state) reports which are avaialble
+
+"""
+    parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
+    
+    parser.add_argument("cmd", help="command)")
+    parser.add_argument("ifn", nargs='*', help="Input files")
+    parser.add_argument('-v', "--verbose", nargs=0, help="increase output verbosity (add more -v to increase versbosity)", action=VAction, dest='verbose')
+    parser.add_argument("-s", "--site-base-url", type=str, help="base url for course site, e.g. http://192.168.33.10", default=None)
+    parser.add_argument("-u", "--username", type=str, help="username for course site access", default=None)
+    parser.add_argument("-p", "--password", type=str, help="password for course site access", default=None)
+    parser.add_argument("-c", "--course_id", type=str, help="course_id, e.g. course-v1:edX+DemoX+Demo_Course", default=None)
+    parser.add_argument("--module-id-from-csv", type=str, help="provide name of CSV file from which to get module_id", default=None)
+    
+    if not args:
+        args = parser.parse_args(arglist)
+    
+    ea = edXapi(base=args.site_base_url, username=args.username, password=args.password,
+                course_id=args.course_id, verbose=args.verbose)
+
+    if args.module_id_from_csv:
+        import csv
+        args.ifn = args.ifn or []
+        mids = []
+        for k in csv.DictReader(open(args.module_id_from_csv)):
+            mids.append(k['ModuleID'])
+        mids = list(set(mids))
+        print "Found %d module ID's in csv file %s" % (len(mids), args.module_id_from_csv)
+        args.ifn += mids
+
+    if args.cmd=="list_reports":
+        ret = ea.list_reports_for_download()
+        names = [x['name'] for x in ret['downloads']]
+        print json.dumps(names, indent=4)
+
+    elif args.cmd=="download_student_state":
+        ea.download_student_state_reports()
+
+    elif args.cmd=="get_problem_responses":
+        module_ids = args.ifn
+        for mid in module_ids:
+            ret = ea.enqueue_request_for_problem_responses(mid)
+            print "%s -> %s" % (mid, ret)
+
+    else:
+        print ("Unknown command %s" % args.cmd)
+
+#-----------------------------------------------------------------------------
+
+if __name__=="__main__":
+    CommandLine()
