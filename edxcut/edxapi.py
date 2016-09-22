@@ -193,6 +193,8 @@ class edXapi(object):
         parser = etree.HTMLParser()
         xml = etree.parse(StringIO(ret.content), parser).getroot()
         bci_div = xml.find('.//div[@class="basic-wrapper"]')
+        if bci_div is None:
+            return None
         fields = ["course-organization", "course-number", "course-name", "course-display-name", "course-start-date",
                   "course-end-date", "course-started", "course-num-sections", "grade-cutoffs"]
         # look for elements like: <li class="field text is-not-editable" id="field-grade-cutoffs">
