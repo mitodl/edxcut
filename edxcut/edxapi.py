@@ -4,6 +4,7 @@ Handles logins, and performs queries.
 '''
 
 import os, sys
+import re
 import time
 import requests
 import pytest
@@ -17,7 +18,8 @@ class edXapi(object):
     API interface to edx platform site.  
     Handles logins, and performs queries.
     '''
-    def __init__(self, base="https://courses.edx.org", username='', password='', course_id=None, verbose=False):
+    def __init__(self, base="https://courses.edx.org", username='', password='',
+                 course_id=None, data_dir="DATA", verbose=False):
         '''
         course_id should be a fully-formed course-v1 or slash separated course id, as appropriate.
         '''
@@ -26,6 +28,7 @@ class edXapi(object):
         self.verbose = verbose
         self.course_id = course_id
         self.username = username
+        self.data_dir = data_dir
         self.login(username, password)
         self.xblock_csrf = None
 
@@ -182,7 +185,6 @@ class edXapi(object):
         '''
         List reports available for download from instructor dashboard
         '''
-        # url = "%s/#view-data_download" % self.instructor_dashboard_url
         url = "%s/api/list_report_downloads" % (self.instructor_dashboard_url)
         ret = self.do_instructor_dashboard_action(url)
         try:
@@ -191,12 +193,47 @@ class edXapi(object):
             return ret
         return data
 
-    def download_student_state_reports(self):
+    def download_student_state_reports(self, module_ids=None, date_filter=None):
         '''
         Download all the student state reports available.
         These are reports with names of the form "<course_id>_student_state_from_<module_id>_<datetime>.csv"
+
+        Limit to date in date_filter if specified.
+        Limit to module_ids if specified.
         '''
-        downloads = self.list_reports_for_download()['downloads']
+        all_downloads = self.list_reports_for_download()['downloads']
+
+        downloads = []
+
+        for dlinfo in all_downloads:
+            name = dlinfo['name']
+            if '_student_state_from_' not in name:
+                continue
+            m = re.search('student_state_from_(block-v1_.*\+block@.*)_([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9]+).csv', name)
+            if not m:
+                print "[edxapi] download: Warning - unknown filename format %s" % name
+                continue
+            dlinfo['module_id'] = m.group(1).replace("block-v1_", "block-v1:")
+            dlinfo['date'] = m.group(2)
+            downloads.append(dlinfo)
+
+        if date_filter:
+            downloads = [x for x in downloads if re.search(date_filter, x['date'])]
+
+        if self.verbose:
+            print "Looking for:\n", json.dumps(module_ids, indent=4)
+
+        if module_ids:
+            downloads = [x for x in downloads if x['module_id'] in module_ids]
+
+        found_mids = [x['module_id'] for x in downloads]
+        if self.verbose:
+            print "Downloading:\n", json.dumps(found_mids, indent=4)
+
+        missing_mids = [x for x in module_ids if not x in found_mids]
+        if self.verbose:
+            print "Missing:\n", json.dumps(missing_mids, indent=4)
+
         cnt = 0
         for dinfo in downloads:
             cnt += 1
@@ -204,7 +241,7 @@ class edXapi(object):
             if '_student_state_from_' in name:
                 url = dinfo['url']
                 ret = self.ses.get(url)
-                ofn = 'DATA/%s' % name
+                ofn = '%s/%s' % (self.data_dir, name)
                 with open(ofn, 'w') as ofp:
                     ofp.write(ret.text)
                 print "[%d] Retrieved %s (%d bytes)" % (cnt, ofn, len(ret.text))
@@ -216,11 +253,20 @@ class edXapi(object):
         '''
         url = "%s/api/get_problem_responses" % (self.instructor_dashboard_url)
         data = {'problem_location': module_id}
-        ret = self.do_instructor_dashboard_action(url, data)
-        try:
-            data = ret.json()
-        except Exception as err:
-            return ret
+        while True:
+            ret = self.do_instructor_dashboard_action(url, data)
+            try:
+                data = ret.json()
+            except Exception as err:
+                return ret
+            if "A problem responses report generation task is already in progress." in data.get('status', ''):
+                print data['status']
+                time.sleep(5)
+                continue
+            if 'The problem responses report is being created' in data.get('status', ''):
+                break
+            if self.verbose:
+                print "Status: %s" % data.get('status', None)
         return data
 
     def do_reset_student_attempts(self, url_name, username=None):
@@ -361,20 +407,24 @@ download_student_state     - download problem response (aka student state) repor
     parser.add_argument("-u", "--username", type=str, help="username for course site access", default=None)
     parser.add_argument("-p", "--password", type=str, help="password for course site access", default=None)
     parser.add_argument("-c", "--course_id", type=str, help="course_id, e.g. course-v1:edX+DemoX+Demo_Course", default=None)
-    parser.add_argument("--module-id-from-csv", type=str, help="provide name of CSV file from which to get module_id", default=None)
+    parser.add_argument("--module-id-from-csv", type=str, help="provide name of CSV file from which to get module_id values", default=None)
+    parser.add_argument("-D", "--data-dir", type=str, help="directory where data is stored", default="DATA")
+    parser.add_argument("--date", type=str, help="date filter for selecting which files to download, in YYYY-MM-DD format", default=None)
     
     if not args:
         args = parser.parse_args(arglist)
     
     ea = edXapi(base=args.site_base_url, username=args.username, password=args.password,
-                course_id=args.course_id, verbose=args.verbose)
+                course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose)
 
     if args.module_id_from_csv:
         import csv
         args.ifn = args.ifn or []
         mids = []
         for k in csv.DictReader(open(args.module_id_from_csv)):
-            mids.append(k['ModuleID'])
+            mid = k['ModuleID']
+            if mid:
+                mids.append(mid)
         mids = list(set(mids))
         print "Found %d module ID's in csv file %s" % (len(mids), args.module_id_from_csv)
         args.ifn += mids
@@ -385,7 +435,7 @@ download_student_state     - download problem response (aka student state) repor
         print json.dumps(names, indent=4)
 
     elif args.cmd=="download_student_state":
-        ea.download_student_state_reports()
+        ea.download_student_state_reports(module_ids=args.ifn, date_filter=args.date)
 
     elif args.cmd=="get_problem_responses":
         module_ids = args.ifn
