@@ -12,6 +12,8 @@ import json
 import argparse
 
 from collections import OrderedDict
+from StringIO import StringIO
+from lxml import etree
 
 class edXapi(object):
     '''
@@ -180,6 +182,31 @@ class edXapi(object):
         if self.verbose:
             print "[edxapi] do_instructor_dashboard_action url=%s, return=%s" % (url, ret)
         return ret
+
+    def get_basic_course_info(self):
+        '''
+        Get basic course info (start date, end date, ...) from instructor dashboard
+        '''
+        url = "%s#view-course_info" % self.instructor_dashboard_url
+        ret = self.ses.get(url)
+        # print ret.content
+        parser = etree.HTMLParser()
+        xml = etree.parse(StringIO(ret.content), parser).getroot()
+        bci_div = xml.find('.//div[@class="basic-wrapper"]')
+        fields = ["course-organization", "course-number", "course-name", "course-display-name", "course-start-date",
+                  "course-end-date", "course-started", "course-num-sections", "grade-cutoffs"]
+        # look for elements like: <li class="field text is-not-editable" id="field-grade-cutoffs">
+        data = {}
+        for field in fields:
+            felem = bci_div.find('.//li[@id="field-%s"]' % field)
+            if felem is None:
+                data[field] = None
+            else:
+                belem = felem.find('b')
+                data[field] = belem.text
+        print json.dumps(data, indent=4)
+        return data
+        
 
     def list_reports_for_download(self):
         '''
@@ -396,6 +423,7 @@ list_reports               - list reports available for download in the instruct
 get_problem_responses      - enqueue request for problem responses; specify module_id (as block_id)
                              or use --module-id-from-csv 
 download_student_state     - download problem response (aka student state) reports which are avaialble
+get_course_info            - extract basic course info (eg start and end dates) from the instructor dashboard
 
 """
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
@@ -442,6 +470,9 @@ download_student_state     - download problem response (aka student state) repor
         for mid in module_ids:
             ret = ea.enqueue_request_for_problem_responses(mid)
             print "%s -> %s" % (mid, ret)
+
+    elif args.cmd=="get_course_info":
+        ea.get_basic_course_info()
 
     else:
         print ("Unknown command %s" % args.cmd)
