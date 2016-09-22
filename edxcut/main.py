@@ -3,6 +3,7 @@ Run unit tests on edX courses, to ensure problem responses are graded properly.
 Also can be used to create unit tests, from an xbundle file.
 '''
 
+import sys
 import argparse
 from course_unit_tester import CourseUnitTester
 from collections import defaultdict
@@ -28,11 +29,16 @@ Commands:
 test               - give unit test yaml file(s) as argument(s)
 make_tests         - give xbundle file(s) as argument(s); produces test yaml file as output
                      (on stdout, or use -o)
+edxapi             - run edxapi (edxapi -h for more)
 
 Examples:
 
 - ...
 """
+    if len(sys.argv)>1 and sys.argv[1]=="edxapi":
+        import edxapi
+        return edxapi.CommandLine(arglist=sys.argv[2:])
+
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
     
     parser.add_argument("cmd", help="command)")
@@ -45,8 +51,8 @@ Examples:
     
     if not args:
         args = parser.parse_args(arglist)
-    
-    if args.cmd=="test":
+
+    elif args.cmd=="test":
         counts = defaultdict(int)
         if len(args.ifn) > 1:
             print "="*70
