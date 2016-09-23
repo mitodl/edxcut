@@ -52,7 +52,7 @@ Examples:
     if not args:
         args = parser.parse_args(arglist)
 
-    elif args.cmd=="test":
+    if args.cmd=="test":
         counts = defaultdict(int)
         if len(args.ifn) > 1:
             print "="*70
