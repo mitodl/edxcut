@@ -49,6 +49,9 @@ class edXapi(object):
         if not r2.status_code==200:
             print "[edXapi] Login failed!"
             print r2.text
+
+    def set_course_id( self, course_id ):
+        self.course_id = course_id
     
     # xblocks
 
@@ -221,6 +224,130 @@ class edXapi(object):
         except Exception as err:
             return ret
         return data
+
+    def list_instructor_tasks(self):
+        '''
+        List instructor tasks
+        '''
+        url = "%s/api/list_instructor_tasks" % (self.instructor_dashboard_url)
+        ret = self.do_instructor_dashboard_action(url)
+        try:
+            data = ret.json()
+        except Exception as err:
+            return ret
+        return data
+
+    def make_grade_report_request( self, course_id ):
+        '''
+        Make Current Grade report Request
+        '''
+        self.set_course_id( course_id )
+        url = "%s/api/calculate_grades_csv" % (self.instructor_dashboard_url)
+        print "[edXapi] url=%s" % url
+        ret = self.do_instructor_dashboard_action(url)
+        try:
+            data = ret.json()
+        except Exception as err:
+            return ret
+        return data
+
+    def get_grade_reports(self, course_id, outputdir):
+        '''
+        Get Grade reports list
+        '''
+        self.set_course_id( course_id )
+        downloads = self.list_reports_for_download()['downloads']
+        cnt = 0
+        grade_reports_dict = {}
+
+        import re
+        regexp = '(.*)_grade_report_(.*).csv'
+
+        for dinfo in downloads:
+            cnt += 1
+            name = dinfo['name']
+            parsefn = re.compile( regexp ) 
+            m = re.search( parsefn, name )
+            if m:
+                grade_reports_dict[ name ] = dinfo
+                url = dinfo['url']
+                ret = self.ses.get(url)
+        return grade_reports_dict
+
+    def get_latest_grade_report( self, grade_report_dict, fname, outputdir ):
+
+        gr_dict = {}
+        for grade_report_fn in grade_report_dict:
+            course_id, date_string = self.parse_grade_report_filename( grade_report_fn )
+            gr_dict[ date_string ] = grade_report_fn
+    
+        # Write out latest report
+        latest_file = gr_dict[ max(gr_dict.keys()) ]
+        ofn = '%s/%s' % (outputdir, 'temp.csv')
+        ofn2 = '%s/%s' % (outputdir, fname )
+
+        # Download 
+        url = grade_report_dict[ latest_file ]['url']
+        ret = self.ses.get(url)
+        print "[edXapi] writing original file"
+        with open(ofn, 'w') as ofp:
+            ofp.write( ret.text.encode('utf-8') )
+
+        print '[edXapi] adding course_id %s and date string %s...' % (course_id, date_string)
+        with open(ofn, 'r') as ofp:
+            cnt = 0
+            with open(ofn2, 'w') as ofp2:
+                for line in ofp:
+                    if cnt > 0:
+                        newline = course_id + str(',') + date_string + str(',') + line.decode('utf-8')
+                        ofp2.write( newline.encode('utf-8') )
+                    else:
+                        newline = str('course_id,Grade_timestamp,') + line.decode('utf-8')
+                        ofp2.write( newline.encode('utf-8') )
+                    cnt = cnt + 1
+
+        print "[edXapi] Latest file is %s (%d bytes)" % (latest_file, len(ret.text))
+        print "[edXapi] Created file %s in %s" % (ofn2, outputdir)
+        os.system('rm -rf %s' % ofn)
+
+        return latest_file
+
+    def parse_grade_report_filename( self, filename ):
+        '''
+        Parse grade report filename to extract course name and time
+        Ex: <course_id>_grade_report_<YYYY-MM-DD-HHMM>.csv
+        Return course id and date as strings
+        '''
+        import re
+        regexp = '(.*)_grade_report_(\d{4}-\d{2}-\d{2}).*.csv'
+        parsefn = re.compile( regexp ) 
+        m = re.search( parsefn, filename )
+        if m:
+            string_course_id = m.group(1)
+            string_date = m.group(2)
+    
+        return self.parse_string_course_id( string_course_id ), string_date
+
+    def parse_string_course_id( self, string_course_id ):
+        '''
+        Make transparent course id from grade report filename
+        Return transparent course id (e.g.: HarvardX/code/term)
+        '''
+        # Find all character positions for occurence of _
+        c = '_'
+        list_pos = [pos for pos, char in enumerate(string_course_id) if char == c]
+
+        # Org value
+        org = string_course_id[:list_pos[:1][0]]
+    
+        # Shortname
+        shortname = string_course_id[(list_pos[:1][0]+1):list_pos[-1:][0]]
+    
+        # Term value
+        term = string_course_id[(list_pos[-1:][0]+1):]
+    
+        course_id = org + str('/') + shortname + str('/') + term
+        return course_id
 
     def download_student_state_reports(self, module_ids=None, date_filter=None):
         '''
