@@ -15,44 +15,94 @@ from collections import OrderedDict
 from StringIO import StringIO
 from lxml import etree
 
+#-----------------------------------------------------------------------------
+# edX platform site API
+
 class edXapi(object):
     '''
     API interface to edx platform site.  
     Handles logins, and performs queries.
     '''
-    def __init__(self, base="https://courses.edx.org", username='', password='',
-                 course_id=None, data_dir="DATA", verbose=False):
+    def __init__(self, base=None, username='', password='',
+                 course_id=None, data_dir="DATA", verbose=False, studio=False):
         '''
-        course_id should be a fully-formed course-v1 or slash separated course id, as appropriate.
+        Initialize API interface to edx platform site (either LMS or CMS Studio).
+
+        base = (string) base URL for the edX site being accessed, e.g. for a local vagrant dev box,
+               use http://192.168.33.10 (LMS) or http://192.168.33.10:18010 (CMS Studio)
+        username = username for user with instructor-level access
+        password = password for user with instructor-level access
+        course_id = (string) fully-formed opaque (course-v1) or slash separated course id, as appropriate
+        data_dir = (string) path of directory where data should be stored (for data retrieval actions)
+        verbose = (bool) output verbosity level
+        studio = (bool) True if edX CMS studio site is being accessed (False for edX LMS site)
+
         '''
         self.ses = requests.session()
-        self.BASE = base
+        self.is_studio = studio
+        self.login_ok = False
+        self.BASE = base or ("https://studio.edx.org" if studio else "https://courses.edx.org")
+        self.content_stages = ["chapter", "sequential", "vertical"]
         self.verbose = verbose
         self.course_id = course_id
         self.username = username
         self.data_dir = data_dir
-        self.login(username, password)
         self.xblock_csrf = None
+        self.debug = False
+        self.login(username, password)
 
     def login(self, username, pw):
-        url = '%s/login' % self.BASE
+        url = '%s/%s' % (self.BASE, "signin" if self.is_studio else "login")
         r1 = self.ses.get(url)
         self.csrf = self.ses.cookies['csrftoken']
-        url2 = '%s/user_api/v1/account/login_session/' % self.BASE
+        url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
         headers = {'X-CSRFToken': self.csrf,
                    'Referer': '%s/login' % self.BASE}
         r2 = self.ses.post(url2, data={'email': username, 'password': pw}, headers=headers)
         self.headers = headers
 
-        if self.verbose:
+        if self.verbose and not r2.status_code==200:
             print "[edXapi] login ret = ", r2
         if not r2.status_code==200:
             print "[edXapi] Login failed!"
             print r2.text
+            return False
+
+        if self.is_studio:
+            try:
+                status = r2.json()
+            except Exception as err:
+                status = {}
+            if not status.get('success'):
+                raise Exception("[edXapi] Login failed! ret=%s" % r2.status_code)
+            return False
+
+        if self.debug:
+            print "login ret=%s, %s" % (r2.status_code, r2.text)
+        self.login_ok = True
+        return True
 
     def set_course_id( self, course_id ):
         self.course_id = course_id
     
+    def ensure_data_dir_exists(self):
+        if not os.path.exists(self.data_dir):
+            os.mkdir(self.data_dir)
+
+    def ensure_studio_site(self):
+        if not self.is_studio:
+            raise Exception("[edXapi] Must be initialized with studio=True for access to Studio functions")
+        self.csrf = self.ses.cookies['csrftoken']
+        self.headers = {'X-CSRFToken': self.csrf}
+            
+    def create_block_key(self, category, url_name):
+        '''
+        Create an edX standard xmodule block key with given type category and for the specified url_name
+        '''
+        cid = self.course_id.split(':', 1)[-1]
+        return "block-v1:%s+type@%s+block@%s" % (cid, category, url_name)
+
+    #-----------------------------------------------------------------------------
     # xblocks
 
     @property
@@ -160,6 +210,7 @@ class edXapi(object):
         data = self.get_xblock_json_response("problem_check", url_name, post_data=post_data)
         return data
 
+    #-----------------------------------------------------------------------------
     # instructor dashboard 
 
     @property
@@ -209,7 +260,8 @@ class edXapi(object):
             else:
                 belem = felem.find('b')
                 data[field] = belem.text
-        print json.dumps(data, indent=4)
+        if self.verbose:
+            print json.dumps(data, indent=4)
         return data
         
 
@@ -493,13 +545,716 @@ class edXapi(object):
                 if self.verbose:
                     print r2.text
             
+    #-----------------------------------------------------------------------------
+    # Studio actions: import and export course, list courses
+
+    def list_courses(self):
+        '''
+        List courses available in Studio site
+        '''
+        self.ensure_studio_site()
+        url = "%s/home/" % self.BASE
+        ret = self.ses.get(url)
+        parser = etree.HTMLParser()
+        xml = etree.parse(StringIO(ret.content), parser).getroot()
+        courses = []
+        course_ids = []
+        for course in xml.findall('.//li[@class="course-item"]'):
+            cid = course.get("data-course-key")
+            if self.verbose:
+                print cid  # etree.tostring(course)
+            courses.append(course)
+            course_ids.append(cid)
+        return {'xml': courses,
+                'course_ids': course_ids,
+                }
+
+
+    def download_course_tarball(self):
+        '''
+        Download tar.gz of full course content (via Studio)
+        '''
+        self.ensure_studio_site()
+        if self.verbose:
+            print "Downloading tar.gz for %s" % (self.course_id)
+    
+        url = '%s/export/%s?_accept=application/x-tgz' % (self.BASE, self.course_id)
+        r3 = self.ses.get(url)
+
+        if not r3.ok or (r3.status_code==404):
+            url = '%s/export/slashes:%s+%s?_accept=application/x-tgz' % (self.BASE, self.course_id.replace('/','+'), sem)
+            r3 = self.ses.get(url)
+
+        dt = time.ctime(time.time()).replace(' ','_').replace(':','')
+        ofn = '%s/COURSE-%s___%s.tar.gz' % (self.data_dir, self.course_id.replace('/','__'), dt)
+        self.ensure_data_dir_exists()
+        with open(ofn, 'w') as fp:
+            fp.write(r3.content)
+        print "--> %s" % (ofn)
+        return ofn
+    
+    def upload_course_tarball(self, tfn, nwait=20):
+        '''
+        Upload tar.gz file of course content (to Studio site)
+        '''
+        self.ensure_studio_site()
+        if self.verbose:
+            print "Uploading %s for %s" % (tfn, self.course_id)
+    
+        tfnbn = os.path.basename(tfn)
+        url = '%s/import/%s' % (self.BASE, self.course_id)
+    
+        files = {'course-data': (tfnbn, open(tfn, 'rb'), 'application/x-gzip')}
+        csrf = self.ses.cookies['csrftoken']
+        if self.verbose:
+            # print "csrf=%s" % csrf
+            print url
+        headers = {'X-CSRFToken':csrf,
+                   'Referer': url,
+                   'Accept': 'application/json, text/javascript, */*; q=0.01',
+               }
+
+        try:
+            r3 = self.ses.post(url, files=files, headers=headers)
+        except Exception as err:
+            print "Error %s" % str(err)
+            print "url=%s, files=%s, headers=%s" % (url, files, headers)
+            sys.stdout.flush()
+            sys.exit(-1)
+    
+        url = '%s/import_status/%s/%s' % (self.BASE, self.course_id, tfnbn.replace('/','-'))
+
+        if self.verbose:
+            # print "r3 = ", r3.status_code
+            print "--> %s" % (r3.content)
+            print url
+    
+        for k in range(nwait):
+            r4 = self.ses.get(url)
+            if r4.ok:
+                if self.verbose:
+                    print r4.content
+                if r4.json()["ImportStatus"]==4:
+                    if self.verbose:
+                        print "Done!"
+                    return True
+            else:
+                if self.verbose:
+                    print r4
+                    sys.stdout.flush()
+            time.sleep(2)
+        return False
+
+    def get_outline(self, usage_key=None):
+        '''
+        Get outline for an edX course block (via Studio).  Defaults to the entire course, 
+        if the usage_key is unspecified.
+
+        Returns data like:
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@course+block@course", 
+            "category": "course", 
+            "published_on": "Jun 17, 2017 at 20:09 UTC", 
+            "display_name": "edX Demonstration Course", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course", 
+            "start": "2013-02-05T05:00:00Z", 
+            "edited_on": "Jun 17, 2017 at 20:09 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": null, 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Feb 05, 2013 at 05:00 UTC", 
+            "user_partitions": [], 
+            "child_info": {
+                "category": "chapter", 
+                "display_name": "Section", 
+                "children": [
+                    {
+                     ...
+                    },
+                ]
+            }, 
+            "published": true
+        }
+        '''
+        self.ensure_studio_site()
+        usage_key = usage_key or self.create_block_key('course', 'course')
+        url = "%s/xblock/outline/%s" % (self.BASE, usage_key)
+        ret = self.ses.get(url, headers={'Accept': 'application/json'})
+        if not ret.status_code==200:
+            raise Exception("Failed to get outline for %s via %s, ret(%s)=%s" % (usage_key, url, ret.status_code, ret.content))
+        data = ret.json()
+        if self.verbose > 1:
+            print "Outline for '%s' has %d children" % (usage_key, len(data['child_info']['children']))
+        return data
+
+    def get_outline_via_studio_home_page(self, usage_key=None):
+        '''
+        Get outline for an edX course (via Studio), via the Studio home page.
+        '''
+        self.ensure_studio_site()
+        ret = self.ses.get("%s/course/%s" % (self.BASE, self.course_id))
+        m = re.search('OutlineFactory\((.*), null\);\n', ret.content, flags=re.MULTILINE)
+        # open('foo.html', 'w').write(ret.content)
+        if not m:
+            raise Exception("No chapter listing found")
+        outline = json.loads(m.group(1))
+        open('foo.json', 'w').write(json.dumps(outline, indent=4))
+        return outline
+            
+    def _get_block_child_info_from_content_preview(self, block_id):
+        '''
+        Get child info dict from content preview
+        '''
+        xblock = self.get_xblock(usage_key=block_id, view="container_preview")
+        html = xblock['html']
+        parser = etree.HTMLParser()
+        xml = etree.parse(StringIO(html), parser).getroot()
+        ids =[]
+        child_blocks = []
+        for elem in xml.findall('.//li[@class="studio-xblock-wrapper is-draggable"]'):
+            cid = elem.get('data-locator')
+            ids.append(cid)
+            child_blocks.append(self.get_xblock(usage_key=cid))
+        child_info = {'children': child_blocks,
+                      'child_ids': ids,
+                      }
+        return child_info
+
+    def _get_block_by_name_from_outline(self, outline=None, block_name=None, block_category=None, path=None, nofail=False):
+        '''
+        Get block from children of current outline level, by name (falls back to url_name)
+
+        Return dict with information about the block.  The returned block contains all its children.
+
+        If path is provided, then start at the course, and iterate through names in path.
+
+        If the block desired is below a vertical, then fall back to extract the block id from the container preview.
+        edX studio should be extended to provide an API to list the contents of a vertical, but sadly
+        it doesn't have that functionality available.
+
+        nofail = (bool) True if no exception should be raised when block is not found (returns False in this case)
+        '''
+        if (not block_name) and path is not None:
+            outline = self.get_outline()   # get outline for course
+            cnt = 0
+            for block_name in path:	# get chapter, sequential, vertical, in that order
+                category = self.content_stages[cnt] if cnt < 3 else None	# no default category after vertical
+                outline = self._get_block_by_name_from_outline(outline, block_name, category)
+                cnt += 1
+            return outline
+        elif not outline:
+            outline = self.get_outline()   # get outline for course
+        the_block = None
+        the_block_by_name = None
+        if not 'child_info' in outline:
+            if outline['category']=="vertical":
+                outline['child_info'] = self._get_block_child_info_from_content_preview(outline['id'])
+            else:
+                if nofail:
+                    return False
+                raise Exception("[edXapi.get_block_by_name_from_outline] Missing child_info in outline %s" % outline)
+        for block in outline['child_info']['children']:
+            cid = block['id']
+            if block_category:
+                if not block['category']==block_category:
+                    raise Exception("[edXapi.get_block_by_name_from_outline] expecting category=%s, got category=%s" % (block_category,
+                                                                                                                        block['category']))
+            url_name = cid.rsplit('@')[-1]
+            if block_name==url_name:
+                the_block = block
+                break
+            if block['display_name']==block_name and not the_block_by_name:
+                the_block_by_name = block
+        if not the_block:
+            the_block = the_block_by_name
+        if not the_block:
+            if nofail:
+                return False
+            raise Exception("No %s block '%s' found" % (block_category, block_name))
+        return the_block
+
+    def get_chapter_by_name(self, chapter_name):
+        '''
+        Get chapter outline using the chapter name (falls back to chapter url_name).
+
+        Return dict of the chapter's outline.
+        '''
+        course_outline = self.get_outline()
+        return self._get_block_by_name_from_outline(course_outline, chapter_name, 'chapter')
+            
+    def get_sequential_by_name(self, chapter_name, seq_name):
+        '''
+        Get sequential outline using the chapter & sequential names (falls back to url_names).
+
+        Return dict of the sequential's outline.
+        '''
+        the_chapter = self.get_chapter_by_name(chapter_name)
+        return self._get_block_by_name_from_outline(the_chapter, seq_name, 'sequential')
+            
+    def get_vertical_by_name(self, chapter_name, seq_name, vert_name):
+        '''
+        Get vertical outline using the chapter, sequential, and vertical names (falls back to url_names).
+
+        Return dict of the vertical's outline.
+        '''
+        the_sequential = self.get_sequential_by_name(chapter_name, seq_name)
+        return self._get_block_by_name_from_outline(the_sequential, vert_name, 'vertical')
+
+    def list_sequentials(self, chapter_name):
+        '''
+        List sequentials in a given chapter in an edX course (via Studio)
+
+        chapter_name = (string) either the url_name (default) or display_name of a chapter
+        '''
+        the_chapter = self.get_chapter_by_name(chapter_name)
+        return self.list_xblocks(the_chapter, 'chapter')
+
+    def create_sequential(self, chapter_name, seq_name):
+        '''
+        Create a new sequantial of the specified name, in the specified chapter.
+
+        chapter_name = (string) either the url_name (default) or display_name of a chapter
+        seq_anme = (string) name of the new sequential to create
+        '''
+        the_chapter = self.get_chapter_by_name(chapter_name)
+        return self.create_xblock(the_chapter['id'], "sequential", seq_name)
+
+    def delete_sequential(self, chapter_name, seq_name):
+        '''
+        Delete the specified sequential, via Studio.
+        '''
+        the_sequential = self.get_sequential_by_name(chapter_name, seq_name)
+        return self.delete_xblock(the_sequential['id'])
+            
+    def list_verticals(self, chapter_name, seq_name):
+        '''
+        List verticals in a given chapter, sequential
+        '''
+        return self.list_xblocks(path=[chapter_name, seq_name])
+            
+    def create_vertical(self, chapter_name, seq_name, vert_name):
+        '''
+        Create vertical in a given chapter, sequential
+        '''
+        the_sequential = self.get_sequential_by_name(chapter_name, seq_name)
+        return self.create_xblock(the_sequential['id'], "vertical", vert_name)
+
+    def delete_vertical(self, chapter_name, seq_name, vert_name):
+        '''
+        Delete the specified vertical, via Studio.
+        '''
+        the_vertical = self.get_vertical_by_name(chapter_name, seq_name, vert_name)
+        return self.delete_xblock(the_vertical['id'])
+
+    def list_chapters(self):
+        '''
+        List chapters in an edX course (via Studio)
+        '''
+        outline = self.get_outline()
+	return self.list_xblocks(outline, 'course') # top-level is course
+
+    def create_chapter(self, name):
+        '''
+        Create a new chapter in an edX course (via Studio)
+        '''
+        self.ensure_studio_site()
+        block_key = self.create_block_key('course', 'course')
+        return self.create_xblock(block_key, "chapter", name)
+
+    def delete_chapter(self, name):
+        '''
+        Delete the specified chapter, via Studio.
+        '''
+        the_chapter = self.get_chapter_by_name(name)
+        return self.delete_xblock(the_chapter['id'])
+
+    def get_xblock(self, usage_key=None, path=None, view=None):
+        '''
+        Get the specified xblock, via Studio.
+
+        If path is provided, then traverse that, and delete the last block specified in the path.
+
+        path = (list) list of xblock url_names (falling back to display_names)
+        '''
+        if (not usage_key) and path is not None:
+            if self.verbose:
+                print "[edXapi.delete_xblock] traversing path=%s" % path
+            the_block = self._get_block_by_name_from_outline(path=path)
+            usage_key = the_block['id']
+                
+        url = '%s/xblock/%s' % (self.BASE, usage_key)
+        if view:
+            url = url + "/" + view
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.get(url, headers=self.headers)
+        if not ret.status_code in [200, 204]:
+            raise Exception("Failed to get xblock %s, view=%s, ret=%s" % (usage_key, view, ret.status_code))
+        return ret.json()
+
+    def delete_xblock(self, usage_key=None, path=None):
+        '''
+        Delete the specified xblock, via Studio.
+
+        If path is provided, then traverse that, and delete the last block specified in the path.
+
+        path = (list) list of xblock url_names (falling back to display_names)
+        '''
+        if (not usage_key) and path is not None:
+            if self.verbose:
+                print "[edXapi.delete_xblock] traversing path=%s" % path
+            the_block = self._get_block_by_name_from_outline(path=path)
+            usage_key = the_block['id']
+            if self.verbose:
+                print "[edXapi.delete_xblock] deleting block id=%s" % usage_key
+                
+        url = '%s/xblock/%s' % (self.BASE, usage_key)
+        ret = self.ses.delete(url, headers=self.headers)
+        if not ret.status_code in [200, 204]:
+            raise Exception("Failed to delete %s, ret=%s" % (usage_key, ret.status_code))
+        if self.verbose:
+            print "Deleted %s, ret=%s" % (usage_key, ret.status_code)
+        return True
+
+    def list_xblocks(self, outline=None, category=None, path=None):
+        '''
+        Return dict giving xblocks one-level down in the current outline.
+        This dict has its children removed (in contrast to _get_block_by_name_from_outline).
+
+        path = (list) if provided, first traverse this list of chapter, sequential, vertical names.
+        '''
+        if not outline:
+            outline = self.get_outline()
+            cnt = 0
+            for name in path:
+                outline = self._get_block_by_name_from_outline(outline, name, self.content_stages[cnt])
+                cnt += 1
+                if cnt > 3:
+                    raise Exception("Too deep a path specified to list_xblocks: path=%s" % path)
+        if category:
+            assert outline['category']==category
+        else:
+            category = outline['category']
+        blocks = []
+        block_category = None
+        if not 'child_info' in outline:
+            if outline['category']=="vertical":
+                outline['child_info'] = self._get_block_child_info_from_content_preview(outline['id'])
+            else:
+                raise Exception("[edXapi.list_xblocks] Missing child_info in outline %s" % json.dumps(outline, indent=4))
+        for block in outline['child_info']['children']:
+            if 'child_info' in block:
+                block.pop('child_info')
+            blocks.append(block)
+            if not block_category:
+                block_category = block['category']
+        titles = [ x['display_name'] for x in blocks ]
+        if self.verbose:
+            print "Found %d %ss in %s %s" % (len(blocks), block_category, category, outline['display_name'])
+            for block in blocks:
+                print "    %s -> %s" % (block['display_name'], block['id'])
+        return {'blocks': blocks, 'titles': titles}
+
+
+    def create_xblock(self, parent_locator=None, category=None, name=None, usage_key=None, path=None, data=None):
+        '''
+        Create a new xblock (via the Studio api) with the specified name, located
+        as a child of the specified parent, of category type specified.
+
+        parent_locator = block key for the parent
+        category = sequential, vertical, html, problem, video, ...
+        name = display_name of new xblock
+        usage_key = (sring) block key for a pre-existing xblock, if known
+        path = (list) if provided, then a list of names for [chapter, sequential, vertical]. 
+               traverse this list to find parent_locator.  If name is not provided, then use
+               the last element of path as the name of the new block to create.
+        data = (string) data string to store, e.g. html or problem content
+        '''
+        if not parent_locator and path:
+            if self.verbose:
+                print "[edXapi.create_xblock] traversing path=%s" % path
+            if not name:
+                parent = self._get_block_by_name_from_outline(path=path[:-1])
+                name = path[-1]
+                if not category:
+                    if len(path)-1 < 3 and len(path) > 0:
+                        category = self.content_stages[len(path)-1]
+                    else:
+                        raise Exception("[edXapi.create_xblock] no category specified, cannot guess; path= %s" % path)
+            else:
+                parent = self._get_block_by_name_from_outline(path=path)
+                if not category:
+                    category = self.content_stages[len(path)]
+            parent_locator = parent['id']
+
+        post_data = {'parent_locator': parent_locator,
+                     'category': category,
+                     'display_name': name,
+        }
+        url = '%s/xblock/' % self.BASE
+        if usage_key:
+            url += usage_key
+        ret = self.ses.post(url, json=post_data, headers=self.headers)
+        if not ret.status_code==200:
+            msg = "[edXapi] Failed to create new %s in course %s with post_data=%s" % (category, self.course_id, str(post_data)[:200])
+            msg += "\nret=%s" % ret.content
+            if 0:
+                print "request: ", ret.request
+                print "request history:", ret.history
+                print "request url:", ret.request.url
+                print dir(ret.request)
+                print "request method: ", ret.request.method
+                print "request headers: ", ret.request.headers
+            raise Exception(msg)
+        rdat = ret.json()
+        if data:
+            block_id = rdat['locator']
+            return self.update_xblock(usage_key=block_id, data=data)
+        if self.verbose:
+            print "[edXapi.create_xblock] Created %s '%s'" % (category, name)
+            # print "--> post data = %s" % json.dumps(post_data, indent=4)
+        return rdat
+
+    def update_xblock(self, usage_key=None, data=None, path=None, create=False, category=None, extra_data=None):
+        '''
+        Update an existing xblock, as specified by usage_key or path.
+        
+        usage_key = (string) block_id of xblock to update
+        data = (string) html or other content of block to store as content
+        path = (list of strings) list of url_name or display_name of chapter, sequential, vertical, block to update
+        create = (bool) True if any block along the path should be created when missing
+        category = (string) category of xblock to create, if create=True and not already existing
+        extra_data = (dict) extra data (eg metadata) to add to xblock (eg for video metadata, and config parameters)
+        '''
+        if not usage_key:
+            if create:
+                outline = self.get_outline()   # get outline for course
+                cnt = 0
+                for name in path:
+                    block_category = self.content_stages[cnt] if cnt < 3 else category	# no default category after vertical
+                    the_block = self._get_block_by_name_from_outline(outline=outline, block_name=name,
+                                                                     block_category=block_category if cnt < 3 else None, 
+                                                                     nofail=True)
+                    if the_block==False:	# block was missing; create it
+                        ret = self.create_xblock(parent_locator=outline['id'], category=block_category, name=name)
+                        the_block_id = ret['locator']
+                        the_block = self.get_xblock(usage_key=the_block_id)
+                        if self.verbose:
+                            print "[edXapi.update_xblock] created block '%s' = %s" % (name, the_block_id)
+                    outline = the_block
+                    cnt += 1
+            else:
+                the_block = self._get_block_by_name_from_outline(path=path)
+            usage_key = the_block['id']
+        post_data = {'data': data }
+        post_data.update(extra_data or {})
+        url = '%s/xblock/%s' % (self.BASE, usage_key)
+        ret = self.ses.post(url, json=post_data, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception("[edXapi.update_xblock] Failed to update xblock %s, ret=%s" % (usage_key, ret.status_code))
+        return ret.json()
+
+    #-----------------------------------------------------------------------------
+    # static assets
+
+    def list_static_assets(self, name=None):
+        '''
+        List static assets in course, via edX studio REST interface
+
+        Eage page has JSON like:
+        
+        {
+            "sort": "uploadDate", 
+            "end": 50, 
+            "assets": [
+                {
+                    "display_name": "problems_F12_MRI_images_MRI23.png", 
+                    "url": "/asset-v1:edX+DemoX+Demo_Course+type@asset+block@problems_F12_MRI_images_MRI23.png", 
+                    "locked": false, 
+                    "portable_url": "/static/problems_F12_MRI_images_MRI23.png", 
+                    "thumbnail": null, 
+                    "content_type": "", 
+                    "date_added": "Jun 19, 2017 at 16:45 UTC", 
+                    "id": "asset-v1:edX+DemoX+Demo_Course+type@asset+block@problems_F12_MRI_images_MRI23.png", 
+                    "external_url": "/asset-v1:edX+DemoX+Demo_Course+type@asset+block@problems_F12_MRI_images_MRI23.png"
+                }, 
+                ...
+            ], 
+            "pageSize": 50, 
+            "start": 0, 
+            "totalCount": 1141, 
+            "page": 0
+        }
+
+        name = (string) display_name to search for and return; if None, return full list of all assets
+
+        '''
+        self.ensure_studio_site()
+        assets = []
+        page = 0
+        done = False
+        while not done:
+            data = {'format': 'json',
+                    'page': page,
+            }
+            url = '%s/assets/%s/' % (self.BASE, self.course_id)        # http://192.168.33.10:18010/assets/course-v1:edX+DemoX+Demo_Course/
+            self.headers['Accept'] = "application/json"
+            ret = self.ses.get(url, params=data, headers=self.headers)
+            if not ret.status_code==200:
+                raise Exception('[edXapi.list_static_assets] Failed to get static asset loist, url=%s, err=%s' % (url, ret.status_code))
+            retdat = ret.json()
+            abyname = { x['display_name']: x for x in retdat['assets'] }
+            if name:
+                if name in abyname:
+                    return abyname[name]
+            assets += retdat['assets']
+            done = len(assets) >= retdat['totalCount']
+            page += 1
+        if name:
+            return None
+        return assets
+
+    def get_static_asset_info(self, fn, nofail=False):
+        '''
+        Get info about static asset from course, via edX studio REST interface
+        
+        nofail = (bool) if True, then don't raise exception when file info not found
+        '''
+        asset = self.list_static_assets(name=fn)
+        if (not nofail) and (not asset):
+            raise Exception("[edXapi.get_static_asset_info] No asset found with display_name='%s'" % fn)
+        return asset
+
+    def get_static_asset(self, fn, ofn=None, nofail=False):
+        '''
+        Get content of the named static asset, from the asset interface (not necessarily Studio), e.g.:
+
+        http://192.168.33.10:18010/asset-v1:MITx+8.MReV+course+type@asset+block/problems_F12_MRI_images_MRI23.png
+        '''
+        normalized_url = fn.replace('/', '_')
+        course_key = self.course_id.split(':', 1)[1]
+        static_asset_url = "%s/asset-v1:%s+type@asset+block/%s" % (self.BASE, course_key, normalized_url)
+        self.csrf = self.ses.cookies['csrftoken']
+        self.headers = {'X-CSRFToken': self.csrf}
+        ret = self.ses.get(static_asset_url, headers=self.headers)
+        if not ret.status_code==200:
+            if nofail:
+                return None
+            else:
+                raise Exception("[edXapi.get_static_asset] Failed to retrieve static asset %s, url=%s, ret status=%s" % (fn,
+                                                                                                                         static_asset_url,
+                                                                                                                         ret.status_code))
+        if ofn:
+            open(ofn, 'w').write(ret.content)
+        if self.verbose:
+            print "[edXapi.get_static_asset] Retrieved %s, content-length=%s" % (fn, len(ret.content))
+        return ret.content
+
+    def upload_static_asset(self, fn):
+        '''
+        Upload static asset to course, via edX studio REST interface
+        '''
+        self.ensure_studio_site()
+        files = {'file': open(fn,'rb')}
+        data = {'format': 'json'}
+        url = '%s/assets/%s/' % (self.BASE, self.course_id)        # http://192.168.33.10:18010/assets/course-v1:edX+DemoX+Demo_Course/
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.post(url, files=files, data=data, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception('[edXapi.upload_static_asset] Failed to upload %s, to url=%s, err=%s' % (fn, url, ret.status_code))
+        if self.verbose:
+            print "uploaded file %s, ret=%s" % (fn, json.dumps(ret, indent=4))
+        return ret.json()
+
+    def delete_static_asset(self, asset_key=None, fn=None):
+        '''
+        Delete static asset from course, via edX studio REST interface
+        
+        asset_key = (string) "asset-v1:" asset key, if available (else constructed from fn)
+        fn = display_name of asset to delete
+        '''
+        self.ensure_studio_site()
+        if not asset_key:
+            normalized_url = fn.replace('/', '_')
+            course_key = self.course_id.split(':', 1)[1]
+            asset_key = "asset-v1:%s+type@asset+block@%s" % (course_key, normalized_url)
+        if not fn:
+            fn = asset_key.rsplit('/', 1)[-1]
+        data = {'format': 'json'}
+        url = '%s/assets/%s/%s' % (self.BASE, self.course_id, asset_key)
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.delete(url, data=data, headers=self.headers)
+        if not ret.status_code in [200, 204]:
+            raise Exception('[edXapi.delete_static_asset] Failed to delete %s, using url=%s, err=%s' % (fn, url, ret.status_code))
+        if self.verbose:
+            print "deleted file %s, ret=%s" % (fn, json.dumps(ret, indent=4))
+        if ret.status_code==204:
+            return 
+        return ret.json()
+
+    def get_video_transcript(self, url_name, videoid=None, lang="en"):
+        '''
+        Get video transcript
+        '''
+        data = {'videoId': videoid}
+        course_key = self.course_id.split(':', 1)[1]
+        block_key = "block-v1:%s+type@video+block@%s" % (course_key, url_name)
+        url = '%s/courses/%s/xblock/%s/handler/transcript/translation/%s' % (self.BASE,
+                                                                             self.course_id,
+                                                                             block_key,
+                                                                             lang,
+        )
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.get(url, params=data, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception('[edXapi.get_video_transcript] Failed to retrieve transcript for %s, via url=%s, err=%s' % (url_name,
+                                                                                                                        ret.request.url,
+                                                                                                                        ret.status_code))
+        return ret.json()
+
 #-----------------------------------------------------------------------------
+# unit tests for edXapi
 
 @pytest.fixture(scope="module")
 def eapi():
     course_id = "course-v1:edX+DemoX+Demo_Course"
-    ea = edXapi("http://192.168.33.10", "staff@example.com", "edx", course_id)
+    ea = edXapi("http://192.168.33.10", "staff@example.com", "edx", course_id=course_id)
     return ea
+
+@pytest.fixture(scope="module")
+def eapi_studio():
+    cid = "course-v1:edX+DemoX+Demo_Course"
+    ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=cid)
+    return ea
+
+def test_course_info(eapi):
+    ea = eapi
+    data = ea.get_basic_course_info()
+    print json.dumps(data, indent=4)
+    assert data["course-name"] == "Demo_Course"
+
+def test_get_video_transcript(eapi):
+    ea = eapi
+    data = ea.get_video_transcript('636541acbae448d98ab484b028c9a7f6', videoid='o2pLltkrhGM')
+    print json.dumps(data, indent=4)
+    assert 'What we have is a voltmeter and an amp meter.' in data['text']
 
 def test_xb0(eapi):
     ea = eapi
@@ -530,6 +1285,173 @@ def test_xb3(eapi):
     print data
     assert (len(data['html']))
 
+def test_list_courses():
+    ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True)
+    data = ea.list_courses()
+    print data['course_ids']
+    assert ('course-v1:edX+DemoX+Demo_Course' in data['course_ids'])
+    assert ('xml' in data)
+
+def x_test_download_course():
+    cid = "course-v1:edX+DemoX+Demo_Course"
+    ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=cid)
+    ret = ea.download_course_tarball()
+    print "returned %s" % ret
+    assert (cid in ret)
+
+def x_test_upload_course():
+    import glob
+    cid = "course-v1:edX+DemoX+Demo_Course"
+    tfn = glob.glob("DATA/COURSE-course-v1:edX+DemoX+Demo_Course___*.tar.gz")[0]
+    ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=cid)
+    ret = ea.upload_course_tarball(tfn)
+    print "returned %s" % ret
+    assert ret
+
+def test_course_outline(eapi_studio):
+    ea = eapi_studio
+    data = ea.list_chapters()
+    assert ('titles' in data)
+    assert ('blocks' in data)
+    assert ("Example Week 1: Getting Started" in data['titles'])
+
+def test_list_xblocks1(eapi_studio):
+    ea = eapi_studio
+    data = ea.list_xblocks(path=["Example Week 2: Get Interactive"])
+    assert ('titles' in data)
+    assert ('blocks' in data)
+    assert ("Homework - Labs and Demos" in data['titles'])
+    assert (data['blocks'][0]['id']=="block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations")
+
+def test_list_xblocks2(eapi_studio):
+    ea = eapi_studio
+    data = ea.list_xblocks(path=["Example Week 2: Get Interactive", "Homework - Labs and Demos", "Code Grader"])
+    assert ('titles' in data)
+    assert ('blocks' in data)
+    assert ("Code Grader" in data['titles'])
+    assert ("The edX system is capable of reviewing computer code" in data['blocks'][0]['data'])
+
+def test_get_xblock1(eapi_studio):
+    ea = eapi_studio
+    data = ea.get_xblock(path=["Example Week 2: Get Interactive", "Homework - Labs and Demos", "Code Grader", "Code Grader"])
+    assert ("The edX system is capable of reviewing computer code" in data['data'])
+    assert (data['category']=="html")
+
+def test_create_xblock1(eapi_studio):
+    ea = eapi_studio
+    ret = ea.create_xblock(path=["test chapter"])
+    ret = ea.create_xblock(path=["test chapter", "test sequential"])
+    ret = ea.create_xblock(path=["test chapter", "test sequential", "test vertical"])
+    html = "<p>hello world</p>"
+    ret = ea.create_xblock(path=["test chapter", "test sequential", "test vertical", "test html"],
+                           data=html, category="html")
+    assert ('data' in ret)
+    assert ('metadata' in ret)
+    assert (ret['metadata']['display_name']=="test html")
+    ea.delete_xblock(path=["test chapter", "test sequential", "test vertical", "test html"])
+    ea.delete_xblock(path=["test chapter", "test sequential", "test vertical"])
+    ea.delete_xblock(path=["test chapter", "test sequential"])
+    ea.delete_xblock(path=["test chapter"])
+
+def test_update_xblock1(eapi_studio):
+    ea = eapi_studio
+    html = "<p>hello world</p>"
+    ret = ea.update_xblock(path=["test chapter", "test sequential", "test vertical", "test html"],
+                           category="html",
+                           data=html,
+                           create=True,
+    )
+    assert ret['data']==html
+    data = ea.list_xblocks(path=["test chapter", "test sequential", "test vertical"])
+    assert 'test html' in data['titles']
+    ea.delete_xblock(path=['test chapter'])
+
+def test_update_xblock2(eapi_studio):
+    ea = eapi_studio
+    html = ""
+    edjs = '{"metadata": {"display_name": "Video name", "sub": "", "html5_sources": [], "youtube_id_1_0": "7bV04R-12uw"}}'
+    ret = ea.update_xblock(path=["test chapter", "test sequential", "test vertical", "test video"],
+                           category="video",
+                           data=html,
+                           create=True,
+                           extra_data = json.loads(edjs),
+    )
+    assert ret['metadata']['youtube_id_1_0']=="7bV04R-12uw"
+    data = ea.list_xblocks(path=["test chapter", "test sequential", "test vertical"])
+    assert 'Video name' in data['titles']
+    ea.delete_xblock(path=['test chapter'])
+
+def test_list_assets(eapi_studio):
+    ea = eapi_studio
+    data = ea.list_static_assets()
+    assert len(data) > 10
+    dd = {x['display_name']: x for x in data}
+    assert 'eDX.html' in dd
+    assert 'url' in dd['eDX.html']
+
+def test_upload_asset1(eapi_studio):
+    ea = eapi_studio
+    mdir = os.path.dirname(__file__)
+    tfn = "%s/test_data/test_image.png" % mdir
+    tfnb = os.path.basename(tfn)
+    assert os.path.exists(tfn)
+    ea.upload_static_asset(tfn)
+    data = ea.get_static_asset_info(tfnb)
+    assert data['display_name']==tfnb
+    ea.delete_static_asset(fn=tfnb)
+    data = ea.get_static_asset_info(tfnb, nofail=True)
+    assert data is None
+
+def test_get_sequentials(eapi_studio):
+    ea = eapi_studio
+    data = ea.list_sequentials("Example Week 1: Getting Started")
+    assert ('titles' in data)
+    assert ('blocks' in data)
+    assert ("Homework - Question Styles" in data['titles'])
+
+def test_create_chapter(eapi_studio):
+    ea = eapi_studio
+    name = "test chapter"
+    try:
+        ea.delete_chapter(name)
+    except Exception as err:
+        pass
+    ret = ea.create_chapter(name)
+    ret = ea.delete_chapter(name)
+    the_err = ""
+    try:
+        ea.delete_chapter(name)
+    except Exception as err:
+        the_err = str(err)
+    assert ("No chapter block '%s' found" % name) in the_err
+
+def test_create_sequential(eapi_studio):
+    ea = eapi_studio
+    name = "test chapter"
+    seq_name = "test sequential"
+    try:
+        ea.delete_chapter(name)
+    except Exception as err:
+        pass
+    ret = ea.create_chapter(name)
+
+    ret = ea.create_sequential(name, seq_name)
+    ret = ea.delete_sequential(name, seq_name)
+    the_err = ""
+    try:
+        ea.delete_sequential(name, seq_name)
+    except Exception as err:
+        the_err = str(err)
+    assert ("No sequential block '%s' found" % seq_name) in the_err
+
+    ret = ea.delete_chapter(name)
+
+def test_verticals(eapi_studio):
+    ea = eapi_studio
+    ret = ea.list_verticals("Introduction", "Demo Course Overview")
+    assert 'blocks' in ret
+    assert 'Introduction: Video and Sequences' in ret['titles']
+
 #-----------------------------------------------------------------------------
 
 class VAction(argparse.Action):
@@ -553,6 +1475,35 @@ get_problem_responses      - enqueue request for problem responses; specify modu
                              or use --module-id-from-csv 
 download_student_state     - download problem response (aka student state) reports which are avaialble
 get_course_info            - extract basic course info (eg start and end dates) from the instructor dashboard
+download_course            - downlaod course tarball (from edX CMS studio site)
+upload_course <tfn>        - upload the specified course .tar.gz file
+list_courses               - list courses (in an edX CMS studio site), e.g.
+                             edxcut edxapi --json-output -s http://192.168.33.10:18010 -u staff@example.com -p edx -S list_courses
+get_outline <name>         - list xblocks in specified chapter
+list_chapters              - list available chapters
+create_chapter <name>      - create a new chapter of the specified name
+delete_chapter <name>      - delete a chapter of the specified name
+list_xblocks <path>        - list xblocks located at the specified path (<chapter> <sequential> <vertical>)
+get_xblock <path>          - retrieve xblock (with xblock source data) at th specified path, e.g.
+                             edxcut edxapi --create -d "<html>hello world2</html>" -t html --json-output -v \
+                                    -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
+                                    -c course-v1:edX+DemoX+Demo_Course get_xblock \
+                                    "Example Week 2: Get Interactive" "Homework - Labs and Demos" "Code Grader" "Code Grader"
+create_xblock <path>       - create xblock specified by path, with type -t, and data -d, e.g.
+                             edxcut edxapi -d "<html>hello world2</html>" -t html --json-output -v \
+                                    -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
+                                    -c course-v1:edX+DemoX+Demo_Course create_xblock testchapter testsection testvertical testhtml2 
+delete_xblock <path>       - delete xblock specified by path, e.g.
+                             edxcut edxapi --json-output -v -s http://192.168.33.10:18010 -u staff@example.com -p edx \
+                                    -S -c course-v1:edX+DemoX+Demo_Course delete_xblock testchapter testsection testvertical testhtml2
+update_xblock <path>       - update (and optionally create all needed) xblock at a specified path, e.g.
+                             edxcut edxapi --create -d "<html>hello world2</html>" -t html --json-output -v \
+                                    -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
+                                    -c course-v1:edX+DemoX+Demo_Course update_xblock testchapter testsection testvertical testhtml2
+get_video_transcript <id>  - get transcript srt.sjson data for a given url_name (id), e.g.:
+                             edxcut edxapi -v -j -s http://192.168.33.10 -u staff@example.com -p edx \
+                                    -c course-v1:edX+DemoX+Demo_Course \
+                                    get_video_transcript 636541acbae448d98ab484b028c9a7f6 --videoid o2pLltkrhGM
 
 """
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
@@ -566,13 +1517,33 @@ get_course_info            - extract basic course info (eg start and end dates) 
     parser.add_argument("-c", "--course_id", type=str, help="course_id, e.g. course-v1:edX+DemoX+Demo_Course", default=None)
     parser.add_argument("--module-id-from-csv", type=str, help="provide name of CSV file from which to get module_id values", default=None)
     parser.add_argument("-D", "--data-dir", type=str, help="directory where data is stored", default="DATA")
+    parser.add_argument("-S", "--studio", help="specify that the edX site being accessed is a CMS studio sute", action="store_true")
+    parser.add_argument("-j", "--json-output", help="Dump result (eg from get_block) as JSON to stdout", action="store_true")
+    parser.add_argument("--json-output-html", help="Dump HTML portion of json result (eg from get_block) to stdout", action="store_true")
+    parser.add_argument("-t", "--type", type=str, help="xblock content category type, used when creating new content xblock", default=None)
+    parser.add_argument("--view", type=str, help="xblock view, used when getting xblock", default=None)
+    parser.add_argument("-o", "--output-file-name", type=str, help="output file name to use, e.g. for get_asset", default=None)
+    parser.add_argument("-d", "--data", type=str, help="data to store (eg for xblock, when using create_block)", default=None)
+    parser.add_argument("--data-file", type=str, help="filename with data to store (eg for xblock, when using create_block)", default=None)
+    parser.add_argument("--extra-data", type=str, help="JSON string with extra data to store (for update_block)", default=None)
+    parser.add_argument("--videoid", type=str, help="videoid for get_video_transcript", default=None)
+    parser.add_argument("--create", help="for update_xblock, create if missing", action="store_true")
     parser.add_argument("--date", type=str, help="date filter for selecting which files to download, in YYYY-MM-DD format", default=None)
     
     if not args:
         args = parser.parse_args(arglist)
     
     ea = edXapi(base=args.site_base_url, username=args.username, password=args.password,
-                course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose)
+                course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose,
+                studio=args.studio)
+
+    ret = None
+    if args.data_file:
+        args.data = open(args.data.file).read()
+
+    if not ea.login_ok:
+        print "Error - login failed, aborting actions"
+        sys.exit(-1)
 
     if args.module_id_from_csv:
         import csv
@@ -601,10 +1572,93 @@ get_course_info            - extract basic course info (eg start and end dates) 
             print "%s -> %s" % (mid, ret)
 
     elif args.cmd=="get_course_info":
-        ea.get_basic_course_info()
+        ret = ea.get_basic_course_info()
+
+    elif args.cmd=="download_course":
+        ea.download_course_tarball()
+
+    elif args.cmd=="upload_course":
+        ea.upload_course_tarball(args.ifn[0])
+
+    elif args.cmd=="list_courses":
+        ret = ea.list_courses()['course_ids']
+
+    elif args.cmd=="create_chapter":
+        ea.create_chapter(args.ifn[0])
+
+    elif args.cmd=="delete_chapter":
+        ea.delete_chapter(args.ifn[0])
+
+    elif args.cmd=="list_chapters":
+        ea.list_chapters()
+
+    elif args.cmd=="get_outline":
+        ea.get_outline(args.ifn[0])
+
+    elif args.cmd=="list_sequentials":
+        ea.list_sequentials(args.ifn[0])
+
+    elif args.cmd=="create_sequential":
+        ea.create_sequential(args.ifn[0], args.ifn[1])
+
+    elif args.cmd=="delete_sequential":
+        ea.delete_sequential(args.ifn[0], args.ifn[1])
+
+    elif args.cmd=="list_verticals":
+        ea.list_verticals(args.ifn[0], args.ifn[1])
+
+    elif args.cmd=="create_vertical":
+        ea.create_vertical(args.ifn[0], args.ifn[1], args.ifn[2])
+
+    elif args.cmd=="delete_vertical":
+        ea.delete_vertical(args.ifn[0], args.ifn[1], args.ifn[2])
+
+    elif args.cmd=="list_xblocks":
+        ret = ea.list_xblocks(path=args.ifn)
+
+    elif args.cmd=="create_xblock":
+        ret = ea.create_xblock(path=args.ifn, category=args.type, data=args.data)
+
+    elif args.cmd=="update_xblock":
+        if args.extra_data:
+            try:
+                args.extra_data = json.loads(args.extra_data)
+            except Exception as err:
+                print "Error!  Could not parse extra_data argument as JSON, extra_data=%s" % args.extra_data
+                sys.exit(-1)
+        ret = ea.update_xblock(path=args.ifn, category=args.type, data=args.data, create=args.create, extra_data=args.extra_data)
+
+    elif args.cmd=="get_xblock":
+        ret = ea.get_xblock(path=args.ifn, view=args.view)
+
+    elif args.cmd=="delete_xblock":
+        ret = ea.delete_xblock(path=args.ifn)
+
+    elif args.cmd=="list_assets":
+        ret = ea.list_static_assets()
+
+    elif args.cmd=="get_asset_info":
+        ret = ea.get_static_asset_info(fn=args.ifn[0])
+
+    elif args.cmd=="get_asset":
+        content = ea.get_static_asset(fn=args.ifn[0], ofn=args.output_file_name)
+
+    elif args.cmd=="upload_asset":
+        ret = ea.upload_static_asset(fn=args.ifn[0])
+
+    elif args.cmd=="delete_asset":
+        ret = ea.delete_static_asset(fn=args.ifn[0])
+
+    elif args.cmd=="get_video_transcript":
+        ret = ea.get_video_transcript(url_name=args.ifn[0], videoid=args.videoid)
 
     else:
         print ("Unknown command %s" % args.cmd)
+
+    if args.json_output_html:
+        print ret['html']
+    elif args.json_output and ret is not None:
+        print json.dumps(ret, indent=4)
 
 #-----------------------------------------------------------------------------
 
