@@ -22,6 +22,7 @@ setup(
                       'requests',
                       'pyyaml',
                       'pytest',
+                      'pysrt',
                       ],
     package_dir={'edxcut': 'edxcut'},
     package_data={},

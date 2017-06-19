@@ -14,6 +14,7 @@ import argparse
 from collections import OrderedDict
 from StringIO import StringIO
 from lxml import etree
+from pysrt import SubRipTime, SubRipItem, SubRipFile
 
 #-----------------------------------------------------------------------------
 # edX platform site API
@@ -54,6 +55,9 @@ class edXapi(object):
     def login(self, username, pw):
         url = '%s/%s' % (self.BASE, "signin" if self.is_studio else "login")
         r1 = self.ses.get(url)
+        if not 'csrftoken' in self.ses.cookies:
+            print "[edXapi.login] login issue - page: ", r1.content
+            raise Exception("[edXapi.login] error - no csrf token in login page")
         self.csrf = self.ses.cookies['csrftoken']
         url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
         headers = {'X-CSRFToken': self.csrf,
@@ -75,7 +79,6 @@ class edXapi(object):
                 status = {}
             if not status.get('success'):
                 raise Exception("[edXapi] Login failed! ret=%s" % r2.status_code)
-            return False
 
         if self.debug:
             print "login ret=%s, %s" % (r2.status_code, r2.text)
@@ -1180,7 +1183,7 @@ class edXapi(object):
         if not ret.status_code==200:
             raise Exception('[edXapi.upload_static_asset] Failed to upload %s, to url=%s, err=%s' % (fn, url, ret.status_code))
         if self.verbose:
-            print "uploaded file %s, ret=%s" % (fn, json.dumps(ret, indent=4))
+            print "uploaded file %s, ret=%s" % (fn, json.dumps(ret.json(), indent=4))
         return ret.json()
 
     def delete_static_asset(self, asset_key=None, fn=None):
@@ -1209,7 +1212,10 @@ class edXapi(object):
             return 
         return ret.json()
 
-    def get_video_transcript(self, url_name, videoid=None, lang="en"):
+    #-----------------------------------------------------------------------------
+    # video transcripts
+
+    def get_video_transcript(self, url_name, videoid=None, lang="en", output_srt=False):
         '''
         Get video transcript
         '''
@@ -1227,7 +1233,73 @@ class edXapi(object):
             raise Exception('[edXapi.get_video_transcript] Failed to retrieve transcript for %s, via url=%s, err=%s' % (url_name,
                                                                                                                         ret.request.url,
                                                                                                                         ret.status_code))
+        rdat = ret.json()
+        if output_srt:
+            return self.generate_srt_from_sjson(rdat)
+        return rdat	# srt.sjson format
+        
+    def upload_video_transcript(self, tfn, url_name, videoid):
+        '''
+        Upload transcript for specfied url_name and videoid.  The transcrpt file should
+        be in srt format (not srt.sjson).
+
+        tfn = (string) srt transcript filename
+        url_name = (string) video module url_name
+        videoid = (string) youtube video ID
+        '''
+        self.ensure_studio_site()
+        files = {'transcript-file': open(tfn,'r')}
+
+        course_key = self.course_id.split(':', 1)[1]
+        block_key = "block-v1:%s+type@video+block@%s" % (course_key, url_name)
+        video_list = [{'mode': 'youtube',
+                       "video": videoid,
+                       "type": "youtube",
+        }]
+        data = {'locator': block_key,
+                'video_list': json.dumps(video_list),
+        }
+        url = '%s/transcripts/upload' % (self.BASE)	# http://192.168.33.10:18010/transcripts/upload
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.post(url, files=files, data=data, headers=self.headers)
+        if not ret.status_code==200:
+            if self.verbose:
+                print "[edXapi.upload_transcript] failed, data=%s" % json.dumps(data, indent=4)
+            raise Exception('[edXapi.upload_transcript] Failed to upload %s, to url=%s, err=%s' % (tfn, url, ret.status_code))
+        if self.verbose:
+            print "uploaded transcript file %s, ret=%s" % (tfn, json.dumps(ret.json(), indent=4))
         return ret.json()
+
+    @staticmethod
+    def generate_srt_from_sjson(sjson_subs):
+        """Generate transcripts with speed = 1.0 from sjson to SubRip (*.srt).
+        Based on code from the Open edX platform.
+    
+        :param sjson_subs: "sjson" subs.
+        :param speed: speed of `sjson_subs`.
+        :returns: "srt" subs.
+        """
+    
+        output = ''
+    
+        equal_len = len(sjson_subs['start']) == len(sjson_subs['end']) == len(sjson_subs['text'])
+        if not equal_len:
+            return output
+    
+        sjson_speed_1 = sjson_subs
+    
+        for i in range(len(sjson_speed_1['start'])):
+            item = SubRipItem(
+                index=i,
+                start=SubRipTime(milliseconds=sjson_speed_1['start'][i]),
+                end=SubRipTime(milliseconds=sjson_speed_1['end'][i]),
+                text=sjson_speed_1['text'][i]
+            )
+            output += (unicode(item))
+            output += '\n'
+        return output
+
+    
 
 #-----------------------------------------------------------------------------
 # unit tests for edXapi
@@ -1255,6 +1327,14 @@ def test_get_video_transcript(eapi):
     data = ea.get_video_transcript('636541acbae448d98ab484b028c9a7f6', videoid='o2pLltkrhGM')
     print json.dumps(data, indent=4)
     assert 'What we have is a voltmeter and an amp meter.' in data['text']
+    srt = ea.generate_srt_from_sjson(data)
+    assert '00:03:17,220 --> 00:03:20,480' in srt
+    ofn = "/tmp/edxapi_tmp_transcript.srt"
+    open(ofn, 'w').write(srt)
+
+    eas = eapi_studio()
+    ret = eas.upload_video_transcript(ofn, '636541acbae448d98ab484b028c9a7f6', videoid='o2pLltkrhGM')
+    assert ret['status']=="Success"
 
 def test_xb0(eapi):
     ea = eapi
@@ -1504,6 +1584,10 @@ get_video_transcript <id>  - get transcript srt.sjson data for a given url_name 
                              edxcut edxapi -v -j -s http://192.168.33.10 -u staff@example.com -p edx \
                                     -c course-v1:edX+DemoX+Demo_Course \
                                     get_video_transcript 636541acbae448d98ab484b028c9a7f6 --videoid o2pLltkrhGM
+upload_transcript <fn> <id> - upload transcript file for a given url_name (id), and videoid, e.g.:
+                              edxcut edxapi --json-output -v -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
+                                     -c course-v1:edX+DemoX+Demo_Course \
+                                     upload_transcript sample.srt 86c5f7e4e99a4b8a8d54364187493c43 --videoid 7bV04R-12uw
 
 """
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
@@ -1527,6 +1611,7 @@ get_video_transcript <id>  - get transcript srt.sjson data for a given url_name 
     parser.add_argument("--data-file", type=str, help="filename with data to store (eg for xblock, when using create_block)", default=None)
     parser.add_argument("--extra-data", type=str, help="JSON string with extra data to store (for update_block)", default=None)
     parser.add_argument("--videoid", type=str, help="videoid for get_video_transcript", default=None)
+    parser.add_argument("--output-srt", help="have get_video_transcript output srt instead of srt.sjson", action="store_true")
     parser.add_argument("--create", help="for update_xblock, create if missing", action="store_true")
     parser.add_argument("--date", type=str, help="date filter for selecting which files to download, in YYYY-MM-DD format", default=None)
     
@@ -1650,13 +1735,18 @@ get_video_transcript <id>  - get transcript srt.sjson data for a given url_name 
         ret = ea.delete_static_asset(fn=args.ifn[0])
 
     elif args.cmd=="get_video_transcript":
-        ret = ea.get_video_transcript(url_name=args.ifn[0], videoid=args.videoid)
+        ret = ea.get_video_transcript(url_name=args.ifn[0], videoid=args.videoid, output_srt=args.output_srt)
+
+    elif args.cmd=="upload_transcript":
+        ret = ea.upload_video_transcript(tfn=args.ifn[0], url_name=args.ifn[1], videoid=args.videoid)
 
     else:
         print ("Unknown command %s" % args.cmd)
 
     if args.json_output_html:
         print ret['html']
+    elif args.output_srt:
+        print ret
     elif args.json_output and ret is not None:
         print json.dumps(ret, indent=4)
 
