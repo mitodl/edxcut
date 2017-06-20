@@ -1238,7 +1238,7 @@ class edXapi(object):
             return self.generate_srt_from_sjson(rdat)
         return rdat	# srt.sjson format
         
-    def upload_video_transcript(self, tfn, url_name, videoid):
+    def upload_video_transcript(self, tfn, url_name, videoid, tfp=None):
         '''
         Upload transcript for specfied url_name and videoid.  The transcrpt file should
         be in srt format (not srt.sjson).
@@ -1246,9 +1246,11 @@ class edXapi(object):
         tfn = (string) srt transcript filename
         url_name = (string) video module url_name
         videoid = (string) youtube video ID
+        tfp = (File) if provided, use this instead of opening tfn
         '''
         self.ensure_studio_site()
-        files = {'transcript-file': open(tfn,'r')}
+        tfp = tfp or open(tfn,'r')
+        files = {'transcript-file': tfp}
 
         course_key = self.course_id.split(':', 1)[1]
         block_key = "block-v1:%s+type@video+block@%s" % (course_key, url_name)
