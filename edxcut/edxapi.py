@@ -572,6 +572,39 @@ class edXapi(object):
                 'course_ids': course_ids,
                 }
 
+    def create_course(self, display_name, org, number, run, nofail=False):
+        '''
+        Create course (via Studio API)
+        '''
+        self.ensure_studio_site()
+        url = "%s/course/" % (self.BASE)
+        self.headers['Accept'] = "application/json"
+        data = {'display_name': display_name,
+                'org': org,
+                'number': number,
+                'run': run,
+                'start': None,
+        }
+        ret = self.ses.post(url, headers=self.headers, json=data)
+        if not ret.status_code==200:
+            raise Exception("Failed to create course data=%s, ret=%s" % (json.dumps(data, indent=4), ret.status_code))
+        rdat = ret.json()
+        if (not nofail) and ('ErrMsg' in rdat):
+            raise Exception("Failed to create course data=%s, ErrMsg=%s, ret=%s" % (json.dumps(data, indent=4), rdat['ErrMsg'], rdat))
+        return rdat
+
+    def delete_course(self, course_key):
+        '''
+        Delete course (via Studio API)
+        '''
+        self.ensure_studio_site()
+        url = "%s/course/%s" % (self.BASE, course_key)
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.delete(url, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception("Failed to delete course %s, ret=%s" % (course_key, ret.status_code))
+        data = ret.json()
+        return data
 
     def download_course_tarball(self):
         '''
@@ -722,6 +755,9 @@ class edXapi(object):
         open('foo.json', 'w').write(json.dumps(outline, indent=4))
         return outline
             
+    #-----------------------------------------------------------------------------
+    # xblocks: chapter, sequential, vertical, units
+
     def _get_block_child_info_from_content_preview(self, block_id):
         '''
         Get child info dict from content preview
@@ -1309,7 +1345,7 @@ class edXapi(object):
 @pytest.fixture(scope="module")
 def eapi():
     course_id = "course-v1:edX+DemoX+Demo_Course"
-    ea = edXapi("http://192.168.33.10", "staff@example.com", "edx", course_id=course_id)
+    ea = edXapi("http://192.168.33.10:18000", "staff@example.com", "edx", course_id=course_id)
     return ea
 
 @pytest.fixture(scope="module")
@@ -1373,6 +1409,21 @@ def test_list_courses():
     print data['course_ids']
     assert ('course-v1:edX+DemoX+Demo_Course' in data['course_ids'])
     assert ('xml' in data)
+
+def test_create_course(eapi_studio):
+    ea = eapi_studio
+    data = ea.create_course('a test course', 'UnivX', 'test101', 'Future2099', nofail=True)
+    print data
+    # assert 'course_key' in data
+    data = ea.list_courses()
+    print data['course_ids']
+    ckey = 'course-v1:UnivX+test101+Future2099'
+    assert ckey in data['course_ids']
+    ret = ea.delete_course(ckey)
+    print ret
+    data = ea.list_courses()
+    print data['course_ids']
+    assert ckey not in data['course_ids']
 
 def x_test_download_course():
     cid = "course-v1:edX+DemoX+Demo_Course"
@@ -1741,6 +1792,16 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
 
     elif args.cmd=="upload_transcript":
         ret = ea.upload_video_transcript(tfn=args.ifn[0], url_name=args.ifn[1], videoid=args.videoid)
+
+    elif args.cmd=="create_course":
+        if 'args.course_id'.startswith('course-v1'):
+            org, number, run = args.course_id.split('v1:', 1)[1].split('+')
+        else:
+            org, number, run = args.course_id.split('/')
+        ret = ea.create_course(display_name=args.ifn[0], org=org, number=number, run=run)
+
+    elif args.cmd=="delete_course":
+        ret = ea.delete_course(args.course_id)
 
     else:
         print ("Unknown command %s" % args.cmd)
