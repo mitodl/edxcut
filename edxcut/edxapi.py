@@ -583,7 +583,6 @@ class edXapi(object):
                 'org': org,
                 'number': number,
                 'run': run,
-                'start': None,
         }
         ret = self.ses.post(url, headers=self.headers, json=data)
         if not ret.status_code==200:
@@ -1419,6 +1418,16 @@ def test_create_course(eapi_studio):
     print data['course_ids']
     ckey = 'course-v1:UnivX+test101+Future2099'
     assert ckey in data['course_ids']
+
+    ea2 = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=ckey)
+    html = "<p>hello world</p>"
+    ret = ea2.update_xblock(path=["test chapter", "test sequential", "test vertical", "test html"],
+                           category="html",
+                           data=html,
+                           create=True,
+    )
+    assert ret['data']==html
+
     ret = ea.delete_course(ckey)
     print ret
     data = ea.list_courses()
