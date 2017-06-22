@@ -25,7 +25,8 @@ class edXapi(object):
     Handles logins, and performs queries.
     '''
     def __init__(self, base=None, username='', password='',
-                 course_id=None, data_dir="DATA", verbose=False, studio=False):
+                 course_id=None, data_dir="DATA", verbose=False, studio=False,
+                 auth=None):
         '''
         Initialize API interface to edx platform site (either LMS or CMS Studio).
 
@@ -37,9 +38,13 @@ class edXapi(object):
         data_dir = (string) path of directory where data should be stored (for data retrieval actions)
         verbose = (bool) output verbosity level
         studio = (bool) True if edX CMS studio site is being accessed (False for edX LMS site)
+        auth = (tuple of strings) if provided, added to the requests session for HTTP basic auth
 
         '''
-        self.ses = requests.session()
+        self.ses = requests.Session()
+        self.ses.verify = False
+        if auth:
+            self.ses.auth = auth
         self.is_studio = studio
         self.login_ok = False
         self.BASE = base or ("https://studio.edx.org" if studio else "https://courses.edx.org")
@@ -56,7 +61,7 @@ class edXapi(object):
         url = '%s/%s' % (self.BASE, "signin" if self.is_studio else "login")
         r1 = self.ses.get(url)
         if not 'csrftoken' in self.ses.cookies:
-            print "[edXapi.login] login issue - page: ", r1.content
+            print "[edXapi.login] login issue - url=%s, page: %s", (url, r1.content)
             raise Exception("[edXapi.login] error - no csrf token in login page")
         self.csrf = self.ses.cookies['csrftoken']
         url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
