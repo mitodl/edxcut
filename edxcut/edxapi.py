@@ -966,7 +966,13 @@ class edXapi(object):
         If path is provided, then traverse that, and delete the last block specified in the path.
 
         path = (list) list of xblock url_names (falling back to display_names)
+
+        If the path has only one item, and it begins with "block-v1:", then use that as an usage-key.
         '''
+        if path and len(path)==1 and path[0].startswith("block-v1:"):
+            usage_key = path[0]
+            path = None
+
         if (not usage_key) and path is not None:
             if self.verbose:
                 print "[edXapi.delete_xblock] traversing path=%s" % path
@@ -1092,7 +1098,13 @@ class edXapi(object):
         create = (bool) True if any block along the path should be created when missing
         category = (string) category of xblock to create, if create=True and not already existing
         extra_data = (dict) extra data (eg metadata) to add to xblock (eg for video metadata, and config parameters)
+
+        If the path has only one item, and it begins with "block-v1:", then use that as an usage-key.
         '''
+        if path and len(path)==1 and path[0].startswith("block-v1:"):
+            usage_key = path[0]
+            path = None
+
         if not usage_key:
             if create:
                 outline = self.get_outline()   # get outline for course
@@ -1113,6 +1125,8 @@ class edXapi(object):
             else:
                 the_block = self._get_block_by_name_from_outline(path=path)
             usage_key = the_block['id']
+        else:
+            self.ensure_studio_site()
         post_data = {'data': data }
         post_data.update(extra_data or {})
         url = '%s/xblock/%s' % (self.BASE, usage_key)
