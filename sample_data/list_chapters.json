@@ -1,0 +1,210 @@
+{
+    "titles": [
+        "Introduction", 
+        "Example Week 1: Getting Started", 
+        "Example Week 2: Get Interactive", 
+        "Example Week 3: Be Social", 
+        "About Exams and Certificates", 
+        "holding section"
+    ], 
+    "blocks": [
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@d8a6192ade314473a78242dfeedfbf5b", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "Introduction", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%40d8a6192ade314473a78242dfeedfbf5b", 
+            "start": "2013-02-05T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "needs_attention", 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Feb 05, 2013 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }, 
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@interactive_demonstrations", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "Example Week 1: Getting Started", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%40interactive_demonstrations", 
+            "start": "2013-02-05T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "needs_attention", 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Feb 05, 2013 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }, 
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@graded_interactions", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "Example Week 2: Get Interactive", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%40graded_interactions", 
+            "start": "2013-02-05T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "needs_attention", 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Feb 05, 2013 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }, 
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@social_integration", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "Example Week 3: Be Social", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%40social_integration", 
+            "start": "2013-02-05T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "needs_attention", 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Feb 05, 2013 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }, 
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@1414ffd5143b4b508f739b563ab468b7", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "About Exams and Certificates", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%401414ffd5143b4b508f739b563ab468b7", 
+            "start": "1970-01-01T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": false, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "live", 
+            "released_to_students": true, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Jan 01, 1970 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }, 
+        {
+            "has_explicit_staff_lock": false, 
+            "graded": false, 
+            "explanatory_message": null, 
+            "actions": {
+                "draggable": true, 
+                "childAddable": true, 
+                "deletable": true
+            }, 
+            "id": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@9fca584977d04885bc911ea76a9ef29e", 
+            "category": "chapter", 
+            "published_on": "Dec 22, 2015 at 12:32 UTC", 
+            "display_name": "holding section", 
+            "due": null, 
+            "studio_url": "/course/course-v1:edX+DemoX+Demo_Course?show=block-v1%3AedX%2BDemoX%2BDemo_Course%2Btype%40chapter%2Bblock%409fca584977d04885bc911ea76a9ef29e", 
+            "start": "2970-01-01T05:00:00Z", 
+            "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+            "has_changes": true, 
+            "ancestor_has_staff_lock": false, 
+            "course_graders": [
+                "Homework", 
+                "Exam"
+            ], 
+            "due_date": "", 
+            "format": null, 
+            "visibility_state": "needs_attention", 
+            "released_to_students": false, 
+            "staff_only_message": false, 
+            "group_access": {}, 
+            "release_date": "Jan 01, 2970 at 05:00 UTC", 
+            "user_partitions": [], 
+            "published": true
+        }
+    ]
+}
