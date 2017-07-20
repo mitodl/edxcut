@@ -61,7 +61,7 @@ class edXapi(object):
         url = '%s/%s' % (self.BASE, "signin" if self.is_studio else "login")
         r1 = self.ses.get(url)
         if not 'csrftoken' in self.ses.cookies:
-            print "[edXapi.login] login issue - url=%s, page: %s", (url, r1.content)
+            print "[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content)
             raise Exception("[edXapi.login] error - no csrf token in login page")
         self.csrf = self.ses.cookies['csrftoken']
         url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
@@ -107,6 +107,8 @@ class edXapi(object):
         '''
         Create an edX standard xmodule block key with given type category and for the specified url_name
         '''
+        if not self.course_id:
+            raise Exception("[edxapi] a course_id must be specified for this operation")
         cid = self.course_id.split(':', 1)[-1]
         return "block-v1:%s+type@%s+block@%s" % (cid, category, url_name)
 
@@ -936,7 +938,12 @@ class edXapi(object):
         If path is provided, then traverse that, and delete the last block specified in the path.
 
         path = (list) list of xblock url_names (falling back to display_names)
+
+        If the path has only one item, and it begins with "block-v1:", then use that as an usage-key.
         '''
+        if path and len(path)==1 and path[0].startswith("block-v1:"):
+            usage_key = path[0]
+            path = None
         if (not usage_key) and path is not None:
             if self.verbose:
                 print "[edXapi.delete_xblock] traversing path=%s" % path
@@ -1613,7 +1620,7 @@ def CommandLine(args=None, arglist=None):
     '''
     edxapi command line.  Accepts args, to allow for simple unit testing.
     '''
-    help_text = """usage: %prog [command] [args...] ...
+    help_text = """usage: edxcut edxapi [command] [args...] ...
 
 Commands:
 
@@ -1659,7 +1666,7 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
 """
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
     
-    parser.add_argument("cmd", help="command)")
+    parser.add_argument("cmd", help="command")
     parser.add_argument("ifn", nargs='*', help="Input files")
     parser.add_argument('-v', "--verbose", nargs=0, help="increase output verbosity (add more -v to increase versbosity)", action=VAction, dest='verbose')
     parser.add_argument("-s", "--site-base-url", type=str, help="base url for course site, e.g. http://192.168.33.10", default=None)
@@ -1680,14 +1687,23 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
     parser.add_argument("--videoid", type=str, help="videoid for get_video_transcript", default=None)
     parser.add_argument("--output-srt", help="have get_video_transcript output srt instead of srt.sjson", action="store_true")
     parser.add_argument("--create", help="for update_xblock, create if missing", action="store_true")
+    parser.add_argument("--auth", help="http basic auth username,pw to use for OpenEdX site access", default=None)
     parser.add_argument("--date", type=str, help="date filter for selecting which files to download, in YYYY-MM-DD format", default=None)
     
     if not args:
         args = parser.parse_args(arglist)
     
-    ea = edXapi(base=args.site_base_url, username=args.username, password=args.password,
-                course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose,
-                studio=args.studio)
+    if args.auth:
+        args.auth = tuple(args.auth.split(',', 1))
+
+    try:
+        ea = edXapi(base=args.site_base_url, username=args.username, password=args.password,
+                    course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose,
+                    studio=args.studio, auth=args.auth)
+    except Exception as err:
+        print err
+        print "Error accessing OpenEdX site - if you're accessing Studio, did you specify the -S flag?"
+        sys.exit(-1)
 
     ret = None
     if args.data_file:
@@ -1742,7 +1758,7 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
         ea.delete_chapter(args.ifn[0])
 
     elif args.cmd=="list_chapters":
-        ea.list_chapters()
+        ret = ea.list_chapters()
 
     elif args.cmd=="get_outline":
         ea.get_outline(args.ifn[0])
