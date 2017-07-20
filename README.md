@@ -387,11 +387,9 @@ It seems the edX platform does properly delete all children of a
 container which has been deleted, so deleting a chapter deletes all
 the content in the chapter in addition to deleting the chapter itself.
 
-###
+## Course Unit Testing
 
-
-Course Unit Test Specifications
--------------------------------
+### Course Unit Test Specifications
 
 For course functionality testing, edxcut accepts a course unit test
 specification file (in YAML format), and interacts with the edX course
@@ -406,8 +404,7 @@ the course XML, or automatically, during compilation using
 latex2edx, you can specify multiple test cases within the `\edXabox`
 macro, including both expected correct and incorrect cases.
 
-Example tests file
-------------------
+#### Example tests file
 
 Below is an [example tests YAML file](https://github.com/mitodl/edxcut/blob/master/test_data/test_demo_course.yaml)
 which can be run to test some problems in the demo course provided with the [edX fullstack](https://openedx.atlassian.net/wiki/display/OpenOPS/Running+Fullstack) (dogwood release) virtualbox VM:
@@ -463,8 +460,8 @@ Note that you may need to change the `url_name` for the first three
 cases, which have a edx-studio-specific hexstring, if using a different VM
 instance.
 
-Usage
------
+Course Unit Testing Usage
+-------------------------
 
 Here's how to run unit tests on a course on edx.org:
 
@@ -482,8 +479,7 @@ Here's how to run unit tests on a course on edx.org:
             test my_tests.yaml
 ```
 
-Course Unit Tests File
-----------------------
+### Course Unit Tests File
 
 The course unit tests file should be in [YAML
 format](https://en.wikipedia.org/wiki/YAML).  It may specify `config`
@@ -536,8 +532,7 @@ tests:
   url_name: s12-wk1-gates
 ```
 
-Generating Tests with latex2edx
--------------------------------
+### Generating Tests with latex2edx
 
 Here are some example `\edXabox` statements which may be used with
 [latex2edx](https://github.com/mitocw/latex2edx), to specify answer
@@ -587,18 +582,15 @@ multiple answer boxes in a single problem, e.g.:
 Such multi-box problems properly generate test cases with
 `box_indexes` set to specify the (x,y) coordinates of the input boxes.
 
-Installation
-------------
+# Installation
 
     pip install -e git+https://github.com/mitodl/edxcut.git#egg=edxcut
 
-Unit tests
-----------
+## Unit tests
 
 This package includes unit tests for build testing.
 
-Versions
---------
+# Versions
 
 0.1 - original
 0.2 - grades download added to edxapi.py (sdotglenn)
