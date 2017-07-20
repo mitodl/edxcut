@@ -156,7 +156,8 @@ The `list_xblocks` edxapi command is useful for listing the contents
 of a container xblock, such as chapters and sequentials, e.g.:
 
 ```
-edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course list_xblocks "Example Week 1: Getting Started"
+edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    list_xblocks "Example Week 1: Getting Started"
 ```
 
 should generate output like this:
@@ -170,7 +171,8 @@ Found 2 sequentials in chapter Example Week 1: Getting Started
 and to see the verticals within, say, the "Homework - Question Styles" sequential:
 
 ```
-edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course list_xblocks "Example Week 1: Getting Started" "Homework - Question Styles"
+edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    list_xblocks "Example Week 1: Getting Started" "Homework - Question Styles"
 ```
 
 to obtain output like this:
@@ -190,7 +192,8 @@ Found 8 verticals in sequential Homework - Question Styles
 You can continue the path specification (chapter...sequential...vertical) to list the contents of a vertical, e.g.:
 
 ```
-edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course list_xblocks "Example Week 1: Getting Started" "Homework - Question Styles" "Numerical Input"
+edxcut edxapi -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    list_xblocks "Example Week 1: Getting Started" "Homework - Question Styles" "Numerical Input"
 ```
 
 to obtain output like this:
@@ -210,7 +213,8 @@ XBlock).
 To download the content of a specific XBlock asset, use the `get_xblock` edxapi command, followed by a path specification (providing chapter sequential vertical url_name e.g.:
 
 ```
-edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course get_xblock "Example Week 1: Getting Started" "Homework - Question Styles" "Numerical Input" "Numerical Input"
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    get_xblock "Example Week 1: Getting Started" "Homework - Question Styles" "Numerical Input" "Numerical Input"
 ```
 
 to obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_problem.json).
@@ -218,7 +222,8 @@ You can also obtain the same content by specifying the specific XBlock's usage k
 instead of the chapter + sequential + vertica + asset content path, e.g.:
 
 ```
-edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course get_xblock block-v1:edX+DemoX+Demo_Course+type@problem+block@75f9562c77bc4858b61f907bb810d974
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    get_xblock block-v1:edX+DemoX+Demo_Course+type@problem+block@75f9562c77bc4858b61f907bb810d974
 ```
 
 ### Downloading a video XBlock and its associated video transcript
@@ -226,7 +231,8 @@ edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c
 To download the content for a video XBlock, use `get_xblock`, e.g.
 
 ```
-edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course get_xblock block-v1:edX+DemoX+Demo_Course+type@video+block@5c90cffecd9b48b188cbfea176bf7fe9
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    get_xblock block-v1:edX+DemoX+Demo_Course+type@video+block@5c90cffecd9b48b188cbfea176bf7fe9
 ```
 
 to obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_video.json).
@@ -234,7 +240,8 @@ to obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/maste
 To download the associated video transcript, you'll need to point to the OpenEdX LMS site (and not the Studio site), e.g.:
 
 ```
-edxcut edxapi -j -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course --videoid qWxm7CA2v24 get_video_transcript 5c90cffecd9b48b188cbfea176bf7fe9 
+edxcut edxapi -j -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    --videoid qWxm7CA2v24 get_video_transcript 5c90cffecd9b48b188cbfea176bf7fe9 
 ```
 
 Note that the `url_name` for the video is specified, and not the whole
@@ -253,7 +260,8 @@ You shold obtain obtain JSON output [such as this](https://github.com/mitodl/edx
 To create a new container XBlock, just specify the path desired to the new XBlock, e.g.:
 
 ```
-edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course create_xblock "New Chapter" 
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    create_xblock "New Chapter" 
 ```
 
 The output should give usage keys for the new XBlock, e.g.:
@@ -322,6 +330,43 @@ using the `usage_key` block ID provided from the creation request.  This will re
     "metadata": {
         "display_name": "New HTML page"
     }
+}
+```
+
+### Uploading a video XBlock
+
+A video XBlock needs additional metadata to be specified, e.g. giving the youtube ID.  This is provided using the `--extra-data` argument, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    --create -t video  -d "" \
+    --extra-data '{"metadata": {"youtube_id_1_0": "qWxm7CA2v24", "start_time": "00:05:10"}}' \
+    update_xblock "New Chapter" "New Sequential" "New Vertical" "New video page"
+```
+The response should include the metadata specified, e.g.:
+```
+{
+    "data": null, 
+    "id": "block-v1:edX+DemoX+Demo_Course+type@video+block@91b7db1cd22e4e7c9e3068852d78abd8", 
+    "metadata": {
+        "start_time": "00:05:10", 
+        "download_video": false, 
+        "display_name": "New video page", 
+        "youtube_id_1_0": "qWxm7CA2v24"
+    }
+}
+```
+
+A transcript can also be uploaded, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    upload_transcript sample_data/example_transcript.srt 91b7db1cd22e4e7c9e3068852d78abd8 --videoid qWxm7CA2v24
+```
+
+and the response should indicate success, e.g.:
+```
+{
+    "status": "Success", 
+    "subs": "qWxm7CA2v24"
 }
 ```
 
