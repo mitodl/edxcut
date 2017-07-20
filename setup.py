@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='edxcut',
-    version='0.3',
+    version='0.4',
     author='I. Chuang and G. Lopez',
     author_email='ichuang@mit.edu',
     packages=['edxcut'],

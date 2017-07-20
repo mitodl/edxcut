@@ -592,5 +592,9 @@ This package includes unit tests for build testing.
 
 # Versions
 
+```
 0.1 - original
 0.2 - grades download added to edxapi.py (sdotglenn)
+0.3 - edxapi extension for course content creation, reading, updating, and deletion
+0.4 - edxapi documentation
+```
