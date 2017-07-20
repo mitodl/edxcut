@@ -1266,6 +1266,8 @@ class edXapi(object):
         '''
         Get video transcript
         '''
+        if url_name.startswith("block-v1:"):
+            url_name = url_name.rsplit('+block@', 1)[-1]
         data = {'videoId': videoid}
         course_key = self.course_id.split(':', 1)[1]
         block_key = "block-v1:%s+type@video+block@%s" % (course_key, url_name)

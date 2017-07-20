@@ -221,6 +221,33 @@ instead of the chapter + sequential + vertica + asset content path, e.g.:
 edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course get_xblock block-v1:edX+DemoX+Demo_Course+type@problem+block@75f9562c77bc4858b61f907bb810d974
 ```
 
+### Downloading a video XBlock and its associated video transcript
+
+To download the content for a video XBlock, use `get_xblock`, e.g.
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course get_xblock block-v1:edX+DemoX+Demo_Course+type@video+block@5c90cffecd9b48b188cbfea176bf7fe9
+```
+
+to obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_video.json).
+
+To download the associated video transcript, you'll need to point to the OpenEdX LMS site (and not the Studio site), e.g.:
+
+```
+edxcut edxapi -j -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course --videoid qWxm7CA2v24 get_video_transcript 5c90cffecd9b48b188cbfea176bf7fe9 
+```
+
+Note that the `url_name` for the video is specified, and not the whole
+usage_key (although there's a fallback mechanism by which if you do
+provide a `usage_key`, edxapi will extract the `url_name` from it for
+you).
+
+Also note that you will need to specify the video's ID, here, a
+youtube ID; that's used by edX's transcripts mechanism to find the
+transcript with the correct timing.
+
+You shold obtain obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_transcript.srt.sjson); by specifying the `--output-srt` flag, the transcript will be provided [in srt format](https://github.com/mitodl/edxcut/blob/master/sample_data/example_transcript.srt) instead of in srt.sjson format.
+
 Course Unit Test Specifications
 -------------------------------
 
