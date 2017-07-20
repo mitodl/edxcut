@@ -1,0 +1,48 @@
+{
+    "has_explicit_staff_lock": false, 
+    "graded": false, 
+    "explanatory_message": null, 
+    "actions": {
+        "draggable": true, 
+        "childAddable": true, 
+        "deletable": true
+    }, 
+    "id": "block-v1:edX+DemoX+Demo_Course+type@video+block@5c90cffecd9b48b188cbfea176bf7fe9", 
+    "category": "video", 
+    "published_on": "Dec 22, 2015 at 12:32 UTC", 
+    "display_name": "Video", 
+    "due": null, 
+    "studio_url": null, 
+    "start": "2013-02-05T05:00:00Z", 
+    "edited_on": "Dec 22, 2015 at 12:32 UTC", 
+    "has_changes": null, 
+    "ancestor_has_staff_lock": false, 
+    "course_graders": [
+        "Homework", 
+        "Exam"
+    ], 
+    "metadata": {
+        "youtube_id_1_25": "", 
+        "download_video": true, 
+        "display_name": "Video", 
+        "sub": "HARHEROESP13-H00700_100", 
+        "start_time": "00:05:10", 
+        "html5_sources": [
+            "https://s3.amazonaws.com/edx-course-videos/harvard-heroes/HARHEROESP13-H00700_100.mp4"
+        ], 
+        "source": "", 
+        "youtube_id_1_0": "qWxm7CA2v24", 
+        "end_time": "00:07:24", 
+        "youtube_id_1_5": "", 
+        "youtube_id_0_75": ""
+    }, 
+    "due_date": "", 
+    "format": null, 
+    "visibility_state": "live", 
+    "released_to_students": true, 
+    "data": "", 
+    "group_access": {}, 
+    "release_date": "Feb 05, 2013 at 05:00 UTC", 
+    "user_partitions": [], 
+    "published": true
+}

@@ -248,6 +248,103 @@ transcript with the correct timing.
 
 You shold obtain obtain JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_transcript.srt.sjson); by specifying the `--output-srt` flag, the transcript will be provided [in srt format](https://github.com/mitodl/edxcut/blob/master/sample_data/example_transcript.srt) instead of in srt.sjson format.
 
+### Creating new chapter, sequential, and vertical xblocks
+
+To create a new container XBlock, just specify the path desired to the new XBlock, e.g.:
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course create_xblock "New Chapter" 
+```
+
+The output should give usage keys for the new XBlock, e.g.:
+
+```
+{
+    "locator": "block-v1:edX+DemoX+Demo_Course+type@chapter+block@f3b7608b609b4edf881531ca00e99c9d", 
+    "courseKey": "course-v1:edX+DemoX+Demo_Course"
+}
+```
+
+`create_xblock` will only create a single new XBlock.  If you wish to create all the XBlocks needed in a path, e.g. new chapter, new sequential, new vertical, use the `updage_xblock` command, with the `--create` flag, e.g.:
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    --create update_xblock "New Chapter" "New Sequential" "New Vertical" 
+```
+
+This will return the usage key for the last XBlock created, e.g.:
+```
+{
+    "data": null, 
+    "id": "block-v1:edX+DemoX+Demo_Course+type@vertical+block@5b9ef8ee60984408b1047b1d5e4a9ef4", 
+    "metadata": {
+        "display_name": "New Vertical"
+    }
+}
+```
+
+### Creating and updating html and problem XBlocks
+
+To create a new HTML or problem XBlock, use the `update_xblock` edxapi command, e.g.:
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    --create -t html  -d "<html>hello world2</html>" \
+    update_xblock "New Chapter" "New Sequential" "New Vertical" "New HTML page"
+```
+
+The page will contain the HTML string specified in the `-d` argument, and the return will provide the newly created XBlock's usage key, e.g.:
+```
+{
+    "data": "<html>hello world2</html>", 
+    "id": "block-v1:edX+DemoX+Demo_Course+type@html+block@994878a552894f67b28b3e050731d5a7", 
+    "metadata": {
+        "display_name": "New HTML page"
+    }
+}
+```
+
+You may also specify that the page content should be taken from a file, using the `--data-file` option instead of `-d`.
+
+To update an existing XBlock, use `update_xblock`, e.g.:
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    -t html  -d "<html>another hello world</html>" \
+    update_xblock block-v1:edX+DemoX+Demo_Course+type@html+block@994878a552894f67b28b3e050731d5a7
+```
+
+using the `usage_key` block ID provided from the creation request.  This will return data saved to the new page, e.g.:
+```
+{
+    "data": "<html>another hello world</html>", 
+    "id": "block-v1:edX+DemoX+Demo_Course+type@html+block@994878a552894f67b28b3e050731d5a7", 
+    "metadata": {
+        "display_name": "New HTML page"
+    }
+}
+```
+
+### Deleting an XBlock
+
+To delete an XBlock, use the `delete_xblock` edxapi command, e.g.:
+
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    delete_xblock "New Chapter"
+```
+The output should confirm deletion, e.g.:
+```
+Deleted block-v1:edX+DemoX+Demo_Course+type@chapter+block@f3b7608b609b4edf881531ca00e99c9d, ret=204
+```
+
+It seems the edX platform does properly delete all children of a
+container which has been deleted, so deleting a chapter deletes all
+the content in the chapter in addition to deleting the chapter itself.
+
+###
+
+
 Course Unit Test Specifications
 -------------------------------
 
