@@ -1312,6 +1312,8 @@ class edXapi(object):
         tfp = (File) if provided, use this instead of opening tfn
         '''
         self.ensure_studio_site()
+        if url_name.startswith("block-v1:"):
+            url_name = url_name.rsplit('+block@', 1)[-1]
         tfp = tfp or open(tfn,'r')
         files = {'transcript-file': tfp}
 
