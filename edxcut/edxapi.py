@@ -1689,6 +1689,11 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
                               edxcut edxapi --json-output -v -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
                                      -c course-v1:edX+DemoX+Demo_Course \
                                      upload_transcript sample.srt 86c5f7e4e99a4b8a8d54364187493c43 --videoid 7bV04R-12uw
+list_assets                 - list static assets in a given course
+get_asset <fn>              - retrieve a single static asset file (for output specify -o output_filename)
+get_asset_info <fn>         - retrieve metadata about single static asset file
+upload_asset <fn>           - upload a single static asset file
+delete_asset <fn | blockid> - delete a single static asset file (or specify usage key / block ID)
 
 """
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
