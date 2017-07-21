@@ -1,7 +1,7 @@
 edxcut
 ======
 
-edxcut = edX Course Unit Tests
+edxcut = edX Course Unit Tester
 
 Have you ever had your open edX course unexpectedly break, due to some
 change in how the edX platform does grading, or due to some code
