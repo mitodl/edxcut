@@ -1255,6 +1255,9 @@ class edXapi(object):
         fn = display_name of asset to delete
         '''
         self.ensure_studio_site()
+        if fn.startswith("asset-v1:"):
+            asset_key = fn
+            fn = None
         if not asset_key:
             normalized_url = fn.replace('/', '_')
             course_key = self.course_id.split(':', 1)[1]
@@ -1267,11 +1270,17 @@ class edXapi(object):
         ret = self.ses.delete(url, data=data, headers=self.headers)
         if not ret.status_code in [200, 204]:
             raise Exception('[edXapi.delete_static_asset] Failed to delete %s, using url=%s, err=%s' % (fn, url, ret.status_code))
+        try:
+            rj = ret.json()
+        except Exception as err:
+            if self.verbose:
+                print "[edxapi] warning - cannot get JSON from server output %s" % ret.text
+            rj = ret.text
         if self.verbose:
-            print "deleted file %s, ret=%s" % (fn, json.dumps(ret, indent=4))
+            print "deleted file %s, ret=%s" % (fn, json.dumps(rj, indent=4))
         if ret.status_code==204:
             return 
-        return ret.json()
+        return rj
 
     #-----------------------------------------------------------------------------
     # video transcripts
