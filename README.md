@@ -31,8 +31,8 @@ Programmatic Content Creation, Reading, Updating, and Deletion
 --------------------------------------------------------------
 
 The core of __edxcut__ is the [__edxapi__ module](https://github.com/mitodl/edxcut/blob/master/edxcut/edxapi.py), 
-which can be accessed and used either via a python program, or from the command line 
-- see [help text](https://github.com/mitodl/edxcut/blob/master/docs/edxcut_help.md).
+which can be accessed and used either via a python program, or from the command line - 
+[see help text](https://github.com/mitodl/edxcut/blob/master/docs/edxcut_help.md).
 
 ### Example: list chapters
 
