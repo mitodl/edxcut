@@ -16,7 +16,9 @@ Would you like to script the creation of course content, or the
 editing of course structure, including command-line access to download
 specific problem, html, and video assets from a course, or
 command-line access to upload new problem, html, and video assets
-(including video transcripts) to an existing course?
+(including video transcripts) to an existing course?  Or would you like to
+copy a single XBlock from one OpenEdX course to another, including
+static assets?
 
 __edxcut__ is an open source package for performing automated unit
 tests of answer box grading correctness, across all problems, in a
@@ -83,6 +85,11 @@ upload_transcript <fn> <id> - upload transcript file for a given url_name (id), 
                               edxcut edxapi --json-output -v -s http://192.168.33.10:18010 -u staff@example.com -p edx -S
                                       -c course-v1:edX+DemoX+Demo_Course
                                       upload_transcript sample.srt 86c5f7e4e99a4b8a8d54364187493c43 --videoid 7bV04R-12uw
+list_assets                 - list static assets in a given course
+get_asset <fn>              - retrieve a single static asset file (for output specify -o output_filename)
+get_asset_info <fn>         - retrieve metadata about single static asset file
+upload_asset <fn>           - upload a single static asset file
+delete_asset <fn | blockid> - delete a single static asset file (or specify usage key / block ID)
 
 positional arguments:
   cmd                   command)
@@ -441,6 +448,28 @@ edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c
     delete_asset test.html
 ```
 An empty response indicates success; failures will result in an exception being raised.
+
+#### Getting static asset metadata
+
+To retrieve information about a static asset, use `get_asset_info`, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    get_asset_info test.html
+```
+with output like:
+```
+{
+    "display_name": "test.html", 
+    "url": "/asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html", 
+    "locked": false, 
+    "portable_url": "/static/test.html", 
+    "thumbnail": null, 
+    "content_type": "", 
+    "date_added": "Jul 21, 2017 at 12:36 UTC", 
+    "id": "asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html", 
+    "external_url": "edx.univ.edu/asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html"
+}
+```
 
 ## Course Unit Testing
 
