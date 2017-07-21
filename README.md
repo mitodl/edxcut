@@ -301,6 +301,8 @@ edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c
     update_xblock "New Chapter" "New Sequential" "New Vertical" "New HTML page"
 ```
 
+Note that the `-t` option is used to specify the content type, e.g. `html` or `problem`.
+
 The page will contain the HTML string specified in the `-d` argument, and the return will provide the newly created XBlock's usage key, e.g.:
 ```
 {
@@ -386,6 +388,59 @@ Deleted block-v1:edX+DemoX+Demo_Course+type@chapter+block@f3b7608b609b4edf881531
 It seems the edX platform does properly delete all children of a
 container which has been deleted, so deleting a chapter deletes all
 the content in the chapter in addition to deleting the chapter itself.
+
+### Static Assets
+
+#### Listing static assets
+
+To list all the static assets used by a course, use the `list_assets` command, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+     list_assets
+```
+producing JSON output [such as this](https://github.com/mitodl/edxcut/blob/master/sample_data/example_assets.json).
+Note this can be slow, and the output large.
+
+#### Retrieving static assets
+
+To retrieve a single static asset file, use `get_asset` and specify the output filename with `-o`, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+     -o output.js \
+    get_asset search_problem_grader.js	
+```
+
+To upload a new static asset, use `upload_asset`, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    upload_asset test.html
+```
+with a response indicating success, e.g.:
+```
+{
+    "msg": "Upload completed", 
+    "asset": {
+        "display_name": "test.html", 
+        "url": "/asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html", 
+        "locked": false, 
+        "portable_url": "/static/test.html", 
+        "thumbnail": null, 
+        "content_type": "", 
+        "date_added": "Jul 21, 2017 at 12:36 UTC", 
+        "id": "asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html", 
+        "external_url": "edx.univ.edu/asset-v1:edX+DemoX+Demo_Course+type@asset+block@test.html"
+    }
+}
+```
+
+#### Deleting static assets
+
+To delete a new static asset, use `delete_asset`, e.g.:
+```
+edxcut edxapi -j -S -v -s https://studio.univ.edu -u staff@example.com -p edx -c course-v1:edX+DemoX+Demo_Course \
+    delete_asset test.html
+```
+An empty response indicates success; failures will result in an exception being raised.
 
 ## Course Unit Testing
 
