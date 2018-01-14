@@ -240,6 +240,7 @@ class edXapi(object):
             if self.verbose:
                 print "Got csrf=%s from instructor dashboard" % self.xblock_csrf
         data = data or {}
+        self.headers['Referer'] = url
         ret = self.ses.post(url, data=data, headers=self.headers)
         if not ret.status_code==200:
             ret = self.ses.get(url, params=data, headers=self.headers)
@@ -591,6 +592,7 @@ class edXapi(object):
                 'number': number,
                 'run': run,
         }
+        self.headers['Referer'] = url
         ret = self.ses.post(url, headers=self.headers, json=data)
         if not ret.status_code==200:
             raise Exception("Failed to create course data=%s, ret=%s" % (json.dumps(data, indent=4), ret.status_code))
@@ -1065,6 +1067,7 @@ class edXapi(object):
                      'display_name': name,
         }
         url = '%s/xblock/' % self.BASE
+        self.headers['Referer'] = url
         if usage_key:
             url += usage_key
         ret = self.ses.post(url, json=post_data, headers=self.headers)
@@ -1127,11 +1130,17 @@ class edXapi(object):
             usage_key = the_block['id']
         else:
             self.ensure_studio_site()
-        post_data = {'data': data }
+        post_data = {'data': data,
+                     'category': category,
+                     'courseKey': self.course_id,
+                     'id': usage_key,
+        }
         post_data.update(extra_data or {})
         url = '%s/xblock/%s' % (self.BASE, usage_key)
+        self.headers['Referer'] = url
         ret = self.ses.post(url, json=post_data, headers=self.headers)
         if not ret.status_code==200:
+            print("[edXapi.update_xblock] Failure with post_data=%s, headers=%s" % (post_data, self.headers))
             raise Exception("[edXapi.update_xblock] Failed to update xblock %s, ret=%s" % (usage_key, ret.status_code))
         return ret.json()
 
@@ -1240,8 +1249,10 @@ class edXapi(object):
         data = {'format': 'json'}
         url = '%s/assets/%s/' % (self.BASE, self.course_id)        # http://192.168.33.10:18010/assets/course-v1:edX+DemoX+Demo_Course/
         self.headers['Accept'] = "application/json"
+        self.headers['Referer'] = url
         ret = self.ses.post(url, files=files, data=data, headers=self.headers)
         if not ret.status_code==200:
+            print('[edXapi.upload_static_asset] Failed, headers=%s, cookies=%s' % (self.headers, self.ses.cookies))
             raise Exception('[edXapi.upload_static_asset] Failed to upload %s, to url=%s, err=%s' % (fn, url, ret.status_code))
         if self.verbose:
             print "uploaded file %s, ret=%s" % (fn, json.dumps(ret.json(), indent=4))
@@ -1337,6 +1348,7 @@ class edXapi(object):
         }
         url = '%s/transcripts/upload' % (self.BASE)	# http://192.168.33.10:18010/transcripts/upload
         self.headers['Accept'] = "application/json"
+        self.headers['Referer'] = url
         ret = self.ses.post(url, files=files, data=data, headers=self.headers)
         if not ret.status_code==200:
             if self.verbose:
