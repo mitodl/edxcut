@@ -741,7 +741,9 @@ class edXapi(object):
         self.ensure_studio_site()
         usage_key = usage_key or self.create_block_key('course', 'course')
         url = "%s/xblock/outline/%s" % (self.BASE, usage_key)
-        ret = self.ses.get(url, headers={'Accept': 'application/json'})
+        self.headers['Accept'] = "application/json"
+        self.headers['Referer'] = url
+        ret = self.ses.get(url, headers=self.headers)
         if not ret.status_code==200:
             raise Exception("Failed to get outline for %s via %s, ret(%s)=%s" % (usage_key, url, ret.status_code, ret.content))
         data = ret.json()
@@ -1805,7 +1807,7 @@ delete_asset <fn | blockid> - delete a single static asset file (or specify usag
         ret = ea.list_chapters()
 
     elif args.cmd=="get_outline":
-        ea.get_outline(args.ifn[0])
+        ret = ea.get_outline(args.ifn[0])
 
     elif args.cmd=="list_sequentials":
         ea.list_sequentials(args.ifn[0])
