@@ -10,6 +10,7 @@ import requests
 import pytest
 import json
 import argparse
+import traceback
 
 from collections import OrderedDict
 from StringIO import StringIO
@@ -59,11 +60,22 @@ class edXapi(object):
 
     def login(self, username, pw):
         url = '%s/%s' % (self.BASE, "signin" if self.is_studio else "login")
-        r1 = self.ses.get(url)
+        try:
+            r1 = self.ses.get(url)
+        except Exception as err:
+            traceback.print_exc()
+            raise Exception("[edxapi] failed to get login page %s, err=%s" % (url, err))
+
+        self.csrf = None
         if not 'csrftoken' in self.ses.cookies:
-            print "[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content)
-            raise Exception("[edXapi.login] error - no csrf token in login page")
-        self.csrf = self.ses.cookies['csrftoken']
+            m = re.search('name="csrfmiddlewaretoken" value="([^"]+)"', r1.content)
+            if 0 and m:
+                self.csrf = m.group(1)
+                print("[edXapi.login] using %s for csrf" % self.csrf)
+            else:
+                print "[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content)
+                raise Exception("[edXapi.login] error - no csrf token in login page")
+        self.csrf = self.csrf or self.ses.cookies['csrftoken']
         url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
         headers = {'X-CSRFToken': self.csrf,
                    'Referer': '%s/login' % self.BASE}
@@ -741,9 +753,7 @@ class edXapi(object):
         self.ensure_studio_site()
         usage_key = usage_key or self.create_block_key('course', 'course')
         url = "%s/xblock/outline/%s" % (self.BASE, usage_key)
-        self.headers['Accept'] = "application/json"
-        self.headers['Referer'] = url
-        ret = self.ses.get(url, headers=self.headers)
+        ret = self.ses.get(url, headers={'Accept': 'application/json'})
         if not ret.status_code==200:
             raise Exception("Failed to get outline for %s via %s, ret(%s)=%s" % (usage_key, url, ret.status_code, ret.content))
         data = ret.json()
@@ -1047,6 +1057,7 @@ class edXapi(object):
                the last element of path as the name of the new block to create.
         data = (string) data string to store, e.g. html or problem content
         '''
+        self.ensure_studio_site()
         if not parent_locator and path:
             if self.verbose:
                 print "[edXapi.create_xblock] traversing path=%s" % path
@@ -1106,6 +1117,7 @@ class edXapi(object):
 
         If the path has only one item, and it begins with "block-v1:", then use that as an usage-key.
         '''
+        self.ensure_studio_site()
         if path and len(path)==1 and path[0].startswith("block-v1:"):
             usage_key = path[0]
             path = None
@@ -1807,7 +1819,7 @@ delete_asset <fn | blockid> - delete a single static asset file (or specify usag
         ret = ea.list_chapters()
 
     elif args.cmd=="get_outline":
-        ret = ea.get_outline(args.ifn[0])
+        ea.get_outline(args.ifn[0])
 
     elif args.cmd=="list_sequentials":
         ea.list_sequentials(args.ifn[0])
