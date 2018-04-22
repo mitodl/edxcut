@@ -1010,7 +1010,12 @@ class edXapi(object):
 
         path = (list) if provided, first traverse this list of chapter, sequential, vertical names.
         '''
-        if not outline:
+        if path and len(path)==1 and path[0].startswith("block-v1:"):
+            usage_key = path[0]
+            path = None
+            outline = self.get_xblock(usage_key=usage_key)
+
+        elif not outline:
             outline = self.get_outline()
             cnt = 0
             for name in path:
