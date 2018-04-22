@@ -27,7 +27,7 @@ class edXapi(object):
     '''
     def __init__(self, base=None, username='', password='',
                  course_id=None, data_dir="DATA", verbose=False, studio=False,
-                 auth=None):
+                 auth=None, timeout=None):
         '''
         Initialize API interface to edx platform site (either LMS or CMS Studio).
 
@@ -40,6 +40,7 @@ class edXapi(object):
         verbose = (bool) output verbosity level
         studio = (bool) True if edX CMS studio site is being accessed (False for edX LMS site)
         auth = (tuple of strings) if provided, added to the requests session for HTTP basic auth
+        timeout = (int) number of seconds to wait for potentially long request timeouts - default None
 
         '''
         self.ses = requests.Session()
@@ -54,6 +55,7 @@ class edXapi(object):
         self.course_id = course_id
         self.username = username
         self.data_dir = data_dir
+        self.timeout = timeout
         self.xblock_csrf = None
         self.debug = False
         self.login(username, password)
@@ -968,7 +970,7 @@ class edXapi(object):
         if view:
             url = url + "/" + view
         self.headers['Accept'] = "application/json"
-        ret = self.ses.get(url, headers=self.headers)
+        ret = self.ses.get(url, headers=self.headers, timeout=self.timeout)
         if not ret.status_code in [200, 204]:
             raise Exception("Failed to get xblock %s, view=%s, ret=%s" % (usage_key, view, ret.status_code))
         return ret.json()
