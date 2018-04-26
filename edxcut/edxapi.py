@@ -996,11 +996,16 @@ class edXapi(object):
             usage_key = the_block['id']
             if self.verbose:
                 print "[edXapi.delete_xblock] deleting block id=%s" % usage_key
-                
+        else:
+            block = self.get_xblock(usage_key=usage_key)
+            csrf = self.ses.cookies['csrftoken']
+            self.headers['X-CSRFToken'] = csrf
+        
         url = '%s/xblock/%s' % (self.BASE, usage_key)
+        self.headers['Referer'] =  url
         ret = self.ses.delete(url, headers=self.headers)
         if not ret.status_code in [200, 204]:
-            raise Exception("Failed to delete %s, ret=%s" % (usage_key, ret.status_code))
+            raise Exception("Failed to delete %s, ret=%s, url=%s, content=%s" % (usage_key, ret.status_code, url, ret.content[:1000]))
         if self.verbose:
             print "Deleted %s, ret=%s" % (usage_key, ret.status_code)
         return True
