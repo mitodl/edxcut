@@ -1,7 +1,15 @@
 edxcut
 ======
 
-edxcut = edX Course Unit Tester
+edxcut = edX Course Uber Tool
+
+Would you like to script the creation of course content on an edX instance,
+or the editing of course structure, including command-line access to download
+specific problem, html, and video assets from a course, or
+command-line access to upload new problem, html, and video assets
+(including video transcripts) to an existing course?  Or would you like to
+copy a single XBlock from one OpenEdX course to another, including
+static assets?
 
 Have you ever had your open edX course unexpectedly break, due to some
 change in how the edX platform does grading, or due to some code
@@ -12,20 +20,12 @@ auto-graded problems in your edX course are functioning as expected,
 without having to manually click through all the problems and remember
 test cases to enter?
 
-Would you like to script the creation of course content, or the
-editing of course structure, including command-line access to download
-specific problem, html, and video assets from a course, or
-command-line access to upload new problem, html, and video assets
-(including video transcripts) to an existing course?  Or would you like to
-copy a single XBlock from one OpenEdX course to another, including
-static assets?
-
-__edxcut__ is an open source package for performing automated unit
-tests of answer box grading correctness, across all problems, in a
-live, open edX course instance.  __edxcut__ also allows programmatic
+__edxcut__ is an open source package for performing programmatic
 creation, reading, updating, and deletion (CRUD) of edX course
 content, via its __edxapi__ API interface, which mimics an instructor
-interacting with an OpenEdX Studio instance.
+interacting with an OpenEdX Studio instance.  __edXcut__ also provides
+the ability to perform automated unit tests of answer box grading
+correctness, across all problems, in a live, open edX course instance.
 
 Programmatic Content Creation, Reading, Updating, and Deletion
 --------------------------------------------------------------
