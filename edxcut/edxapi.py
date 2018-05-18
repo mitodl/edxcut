@@ -78,6 +78,11 @@ class edXapi(object):
                 print "[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content)
                 raise Exception("[edXapi.login] error - no csrf token in login page")
         self.csrf = self.csrf or self.ses.cookies['csrftoken']
+
+        do_shiboleth_login = "Please choose your account provider" in r1.content
+        if do_shiboleth_login:
+            return self.login_shiboleth(username, pw, r1)
+
         url2 = '%s/%s' % (self.BASE, "login_post" if self.is_studio else "user_api/v1/account/login_session/")
         headers = {'X-CSRFToken': self.csrf,
                    'Referer': '%s/login' % self.BASE}
@@ -101,6 +106,79 @@ class edXapi(object):
 
         if self.debug:
             print "login ret=%s, %s" % (r2.status_code, r2.text)
+        self.login_ok = True
+        return True
+
+    def login_shiboleth(self, username, pw, initial_ret):
+        '''
+        Authenticate via Shibboleth
+        '''
+        r1 = initial_ret
+        m = re.search('<form id=[^>]+ action="(.*)">', r1.content)
+        if not m:
+            print "oops, failed to get form action"
+            return
+        action = m.group(1)
+        print("action=%s" % action)
+        rurl = r1.url
+        print("r1 url=%s" % rurl)
+        url = rurl + action
+        data = {'user_idp': 'https://idp.touchstonenetwork.net/shibboleth-idp',
+                'Select': 's',
+                }
+        r2 = self.ses.post(url, data=data)
+        if not "Collaboration Account Login" in r2.content:
+            print "at r2:"
+            print r2.content
+            return
+        m = re.search('<form action="(.*)" ', r2.content)
+        if not m:
+            print "oops, failed to get form action"
+            print r2.content
+            return
+        action = m.group(1)
+        print("action=%s" % action)
+        rurl = r2.url
+        print("r2 url=%s" % rurl)
+        # url = rurl + action
+        url = rurl
+        data = {'j_username': username,
+                'j_password': pw,
+                '_eventId_proceed': 'Login',
+        }
+        print "cookies=%s" % self.ses.cookies
+        headers = {'Referer': url,
+                   'Origin': rurl,
+                   }
+        print "headers=%s" % headers
+        r3 = self.ses.post(url, data=data, headers=headers)
+        if not "RelayState" in r3.content:
+            print "at r3:"
+            print r3.content
+            return
+        self.headers = headers
+        xml = etree.fromstring(r3.content)
+        forms = xml.findall(".//form")
+        if not forms:
+            print ("Missing form in r3")
+            print r3.content
+            return
+        form = forms[0]
+        action = form.get("action")
+        data = {}
+        for ie in form.findall(".//input"):
+            name = ie.get('name')
+            if name:
+                data[name] = ie.get("value")
+        # print ("data=%s" % data)
+        print("action=%s" % action)
+        r4 = self.ses.post(action, data=data)
+        print r4.content
+        dashboard_url = "%s/dashboard" % self.BASE
+        r5 = self.ses.get(dashboard_url)
+        #print "r5:"
+        #print r5.content
+        print("Shibboleth login done")
         self.login_ok = True
         return True
 
@@ -244,7 +322,8 @@ class edXapi(object):
     def get_instructor_dashboard_csrf(self):
         url = '%s#view-data_download' % self.instructor_dashboard_url
         ret = self.ses.get(url)
-        csrf = self.ses.cookies['csrftoken']
+        domain = self.BASE.rsplit("//", 1)[-1]
+        csrf = self.ses.cookies.get('csrftoken', domain=domain)
         return csrf
 
     def do_instructor_dashboard_action(self, url, data=None):
@@ -268,6 +347,8 @@ class edXapi(object):
         '''
         url = "%s#view-course_info" % self.instructor_dashboard_url
         ret = self.ses.get(url)
+        if self.verbose:
+            print("course_info ret=%s" % ret)
         # print ret.content
         parser = etree.HTMLParser()
         xml = etree.parse(StringIO(ret.content), parser).getroot()
@@ -1797,6 +1878,8 @@ delete_asset <fn | blockid> - delete a single static asset file (or specify usag
 
     if args.cmd=="list_reports":
         ret = ea.list_reports_for_download()
+        if self.verbose:
+            print("ret=%s" % ret)
         names = [x['name'] for x in ret['downloads']]
         print json.dumps(names, indent=4)
 
@@ -1811,6 +1894,8 @@ delete_asset <fn | blockid> - delete a single static asset file (or specify usag
 
     elif args.cmd=="get_course_info":
         ret = ea.get_basic_course_info()
+        if args.verbose:
+            print("course info ret=%s" % ret)
 
     elif args.cmd=="download_course":
         ea.download_course_tarball()
