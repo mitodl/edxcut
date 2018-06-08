@@ -36,8 +36,8 @@ Examples:
 - ...
 """
     if len(sys.argv)>1 and sys.argv[1]=="edxapi":
-        import edxapi
-        return edxapi.CommandLine(arglist=sys.argv[2:])
+        import edxapi_cmd
+        return edxapi_cmd.CommandLine(arglist=sys.argv[2:])
 
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
     
