@@ -32,6 +32,9 @@ download_course            - downlaod course tarball (from edX CMS studio site)
 upload_course <tfn>        - upload the specified course .tar.gz file
 list_courses               - list courses (in an edX CMS studio site), e.g.
                              edxcut edxapi --json-output -s http://192.168.33.10:18010 -u staff@example.com -p edx -S list_courses
+get_course_metadata        - get course metadata (JSON), e.g. start and end dates (from Studio)
+update_course_metadata <d> - update course metadata, given new data (JSON format: alternatively use --data-file): via Studio
+set_course_end_date <d>    - set course end date to that specified; date should be strings like "2016-01-07T14:00:00Z"
 get_outline <name>         - list xblocks in specified chapter
 list_chapters              - list available chapters
 create_chapter <name>      - create a new chapter of the specified name
@@ -53,6 +56,8 @@ update_xblock <path>       - update (and optionally create all needed) xblock at
                              edxcut edxapi --create -d "<html>hello world2</html>" -t html --json-output -v \
                                     -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
                                     -c course-v1:edX+DemoX+Demo_Course update_xblock testchapter testsection testvertical testhtml2
+get_due_date <id>          - get due date for specified block ID (should be a sequential)
+set_due_date <id> <date>   - set due  date for specified block ID (should be a sequential); date should be like "2016-01-07T14:00:00Z"
 get_video_transcript <id>  - get transcript srt.sjson data for a given url_name (id), e.g.:
                              edxcut edxapi -v -j -s http://192.168.33.10 -u staff@example.com -p edx \
                                     -c course-v1:edX+DemoX+Demo_Course \
@@ -121,7 +126,9 @@ enroll_student <email>      - enroll student in CCX instance
 
     ret = None
     if args.data_file:
-        args.data = open(args.data.file).read()
+        args.data = open(args.data_file).read()
+        if args.verbose:
+            print("Read data from %s" % args.data_file)
 
     if not ea.login_ok:
         print "Error - login failed, aborting actions"
@@ -170,6 +177,29 @@ enroll_student <email>      - enroll student in CCX instance
     elif args.cmd=="list_courses":
         ret = ea.list_courses()['course_ids']
 
+    elif args.cmd=="get_course_metadata":
+        ret = ea.get_course_metadata()
+
+    elif args.cmd=="update_course_metadata":
+        if args.data:
+            try:
+                md = json.loads(args.data)
+            except Exception as err:
+                raise Exception("Metadata (from file %s) should be in JSON format: err=%s" % (args.data_file, str(err)))
+        else:
+            try:
+                md = json.loads(args.ifn[0])
+            except Exception as err:
+                raise Exception("Metadata should be in JSON format: err=%s" % str(err))
+        ret = ea.update_course_metadata(md)
+
+    elif args.cmd=="set_course_end_date":
+        end_date = args.ifn[0]
+        enrollment_end = None
+        if len(args.ifn)>1:
+            enrollment_end = args.ifn[1]
+        ret = ea.set_course_end_date(end_date, enrollment_end=enrollment_end)
+        
     elif args.cmd=="create_chapter":
         ea.create_chapter(args.ifn[0])
 
@@ -220,6 +250,12 @@ enroll_student <email>      - enroll student in CCX instance
 
     elif args.cmd=="delete_xblock":
         ret = ea.delete_xblock(path=args.ifn)
+
+    elif args.cmd=="get_due_date":
+        ret = ea.get_due_date(args.ifn[0])
+
+    elif args.cmd=="set_due_date":
+        ret = ea.set_due_date(args.ifn[0], args.ifn[1])
 
     elif args.cmd=="list_assets":
         ret = ea.list_static_assets()

@@ -708,6 +708,51 @@ class edXapi(object):
         data = ret.json()
         return data
 
+    def get_course_metadata(self):
+        '''
+        Get course metadata
+        '''
+        self.ensure_studio_site()
+        url = '%s/settings/details/%s' % (self.BASE, self.course_id)
+        self.headers['Accept'] = "application/json"
+        ret = self.ses.get(url, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception("Failed to get course metadata, url=%s, err=%s" % (url, ret.status_code))
+        return ret.json()
+
+    def update_course_metadata(self, new_metadata, single_field=False):
+        '''
+        Update course metadata.  
+
+        If single_field is True, then treat new_metadata as an incremental update to the existing metadata.
+        '''
+        self.ensure_studio_site()
+        url = '%s/settings/details/%s' % (self.BASE, self.course_id)
+        current_md = self.get_course_metadata()	# do this to get the CSRF token as well as the existing metadata
+        csrf = self.ses.cookies['csrftoken']
+        self.headers['X-CSRFToken'] = csrf
+        self.headers['Referer'] = url
+        if single_field:
+            update_md = current_md
+            update_md.update(new_metadata)
+        else:
+            update_md = new_metadata
+        ret = self.ses.post(url, json=update_md, headers=self.headers)
+        if not ret.status_code==200:
+            raise Exception("Failed to update course metadata, url=%s, err=%s" % (url, ret.status_code))
+        return ret
+
+    def set_course_end_date(self, end_date, enrollment_end=None):
+        '''
+        Set end_date of course (and also the enrollment_end, if provided)
+        Dates should be strings like "2016-01-07T14:00:00Z"
+        '''
+        md = {'end_date': end_date}
+        if enrollment_end:
+            md['enrollment_end'] = enrollment_end
+        ret = self.update_course_metadata(md, single_field=True)
+        return ret
+
     def download_course_tarball(self):
         '''
         Download tar.gz of full course content (via Studio)
@@ -1196,7 +1241,7 @@ class edXapi(object):
             # print "--> post data = %s" % json.dumps(post_data, indent=4)
         return rdat
 
-    def update_xblock(self, usage_key=None, data=None, path=None, create=False, category=None, extra_data=None):
+    def update_xblock(self, usage_key=None, data=None, path=None, create=False, category=None, extra_data=None, post_data=None):
         '''
         Update an existing xblock, as specified by usage_key or path.
         
@@ -1206,6 +1251,7 @@ class edXapi(object):
         create = (bool) True if any block along the path should be created when missing
         category = (string) category of xblock to create, if create=True and not already existing
         extra_data = (dict) extra data (eg metadata) to add to xblock (eg for video metadata, and config parameters)
+        post_data = (dict) data to post to the xblock API endpoint -- leave as None for this to be automatically constructed
 
         If the path has only one item, and it begins with "block-v1:", then use that as an usage-key.
         '''
@@ -1236,11 +1282,12 @@ class edXapi(object):
             usage_key = the_block['id']
         else:
             self.ensure_studio_site()
-        post_data = {'data': data,
-                     'category': category,
-                     'courseKey': self.course_id,
-                     'id': usage_key,
-        }
+        if post_data is None:
+            post_data = {'data': data,
+                         'category': category,
+                         'courseKey': self.course_id,
+                         'id': usage_key,
+            }
         post_data.update(extra_data or {})
         url = '%s/xblock/%s' % (self.BASE, usage_key)
         self.headers['Referer'] = url
@@ -1249,6 +1296,33 @@ class edXapi(object):
             print("[edXapi.update_xblock] Failure with post_data=%s, headers=%s" % (post_data, self.headers))
             raise Exception("[edXapi.update_xblock] Failed to update xblock %s, ret=%s" % (usage_key, ret.status_code))
         return ret.json()
+
+    def get_xblock_metadata(self, usage_key):
+        ret = self.update_xblock(usage_key=usage_key, post_data={})
+        return ret['metadata']
+
+    def set_xblock_metadata(self, usage_key, md):
+        data = {'metadata': md}
+        ret = self.update_xblock(usage_key=usage_key, post_data=data)
+        return ret['metadata']
+
+    def get_due_date(self, usage_key):
+        '''
+        Get due date for a specific block - which should be a sequential
+        '''
+        if not 'type@sequential' in usage_key:
+            raise Exception("[get_due_date] block type must be sequential")
+        md = self.get_xblock_metadata(usage_key)
+        return md['due']
+
+    def set_due_date(self, usage_key, due_date):
+        '''
+        Set due date for a specific block - which should be a sequential
+        '''
+        if not 'type@sequential' in usage_key:
+            raise Exception("[get_due_date] block type must be sequential")
+        md = self.set_xblock_metadata(usage_key, {'due': due_date})
+        return md
 
     #-----------------------------------------------------------------------------
     # static assets
