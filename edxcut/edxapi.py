@@ -767,9 +767,15 @@ class edXapi(object):
         self.headers['Referer'] = url
         self.headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
         r3 = self.ses.post(url, headers=self.headers)	# start the export process - tarball creation takes some time, poll until done
+        if r3.status_code==403:
+            print("Sorry, access forbidden for %s" % url)
+        try:
+            r3j = r3.json()
+        except Exception as err:
+            raise Exception("[edxapi] unknown response from server (%s): %s" % (url, r3.content))
         try:
             cnt = 0
-            estat = r3.json()['ExportStatus']
+            estat = r3j['ExportStatus']
             url = '%s/export_status/%s' % (self.BASE, self.course_id)
             while not estat==3:
                 cnt += 1
