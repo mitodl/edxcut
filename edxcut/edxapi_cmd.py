@@ -57,7 +57,8 @@ update_xblock <path>       - update (and optionally create all needed) xblock at
                                     -s http://192.168.33.10:18010 -u staff@example.com -p edx -S \
                                     -c course-v1:edX+DemoX+Demo_Course update_xblock testchapter testsection testvertical testhtml2
 get_due_date <id>          - get due date for specified block ID (should be a sequential)
-set_due_date <id> <date>   - set due  date for specified block ID (should be a sequential); date should be like "2016-01-07T14:00:00Z"
+set_due_date <id> <date>   - set due date for specified block ID (should be a sequential); date should be like "2016-01-07T14:00:00Z"
+set_all_due_dates <date>   - set all due dates for sequential blocks in course, to that specified
 get_video_transcript <id>  - get transcript srt.sjson data for a given url_name (id), e.g.:
                              edxcut edxapi -v -j -s http://192.168.33.10 -u staff@example.com -p edx \
                                     -c course-v1:edX+DemoX+Demo_Course \
@@ -210,7 +211,10 @@ enroll_student <email>      - enroll student in CCX instance
         ret = ea.list_chapters()
 
     elif args.cmd=="get_outline":
-        ea.get_outline(args.ifn[0])
+        if len(args.ifn):
+            ret = ea.get_outline(args.ifn[0])
+        else:
+            ret = ea.get_outline()
 
     elif args.cmd=="list_sequentials":
         ea.list_sequentials(args.ifn[0])
@@ -256,6 +260,9 @@ enroll_student <email>      - enroll student in CCX instance
 
     elif args.cmd=="set_due_date":
         ret = ea.set_due_date(args.ifn[0], args.ifn[1])
+
+    elif args.cmd=="set_all_due_dates":
+        ret = ea.set_all_due_dates(args.ifn[0])
 
     elif args.cmd=="list_assets":
         ret = ea.list_static_assets()

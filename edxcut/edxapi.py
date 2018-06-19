@@ -11,7 +11,7 @@ import pytest
 import json
 import traceback
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from StringIO import StringIO
 from lxml import etree
 from pysrt import SubRipTime, SubRipItem, SubRipFile
@@ -761,18 +761,54 @@ class edXapi(object):
         if self.verbose:
             print "Downloading tar.gz for %s" % (self.course_id)
     
-        url = '%s/export/%s?_accept=application/x-tgz' % (self.BASE, self.course_id)
-        r3 = self.ses.get(url)
+        url = '%s/export/%s' % (self.BASE, self.course_id)
+        r1 = self.ses.get(url)
+        self.headers['X-CSRFToken'] = self.ses.cookies['csrftoken']
+        self.headers['Referer'] = url
+        self.headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
+        r3 = self.ses.post(url, headers=self.headers)	# start the export process - tarball creation takes some time, poll until done
+        try:
+            cnt = 0
+            estat = r3.json()['ExportStatus']
+            url = '%s/export_status/%s' % (self.BASE, self.course_id)
+            while not estat==3:
+                cnt += 1
+                sys.stdout.write('.')
+                sys.stdout.flush()
+                if (cnt>300):
+                    raise Exception("[edxapi] Waited too long for export of %s: aborting!" % self.course_id)
+                time.sleep(1)
+                r3 = self.ses.get(url, headers=self.headers)	# start the export process - tarball creation takes some time, poll until done
+                r3j = r3.json()
+                estat = r3j['ExportStatus']
+                if estat==2:
+                    print("\n")
+                    print r3j
+                continue
+            eo = r3j['ExportOutput']
+            print("\nRetrieving course tarball from %s" % eo)
+            sys.stdout.flush()
+            r4 = self.ses.get(eo)
+        except Exception as err:
+            raise Exception("[edxapi] Failed to retrieve course %s tarball, err=%s, traceback=%s" % (self.course_id, err, traceback.format_exc()))
+            
+        if 0:						# old slash export - deprecated
+            if not r3.ok or (r3.status_code==404):
+                url = '%s/export/slashes:%s+%s?_accept=application/x-tgz' % (self.BASE, self.course_id.replace('/','+'), sem)
+                r3 = self.ses.get(url)
 
-        if not r3.ok or (r3.status_code==404):
-            url = '%s/export/slashes:%s+%s?_accept=application/x-tgz' % (self.BASE, self.course_id.replace('/','+'), sem)
-            r3 = self.ses.get(url)
+        if len(r4.content) < 100:
+            print "--> ERROR!  Content too short, length=%s, content=%s" % (len(r4.content), r4.content)
+            return
+        if len(r4.content) < 40000 and "Page Not Found" in r4.content:
+            print "--> ERROR!  Page not found, length=%s, content=%s" % (len(r4.content), r4.content)
+            return
 
         dt = time.ctime(time.time()).replace(' ','_').replace(':','')
         ofn = '%s/COURSE-%s___%s.tar.gz' % (self.data_dir, self.course_id.replace('/','__'), dt)
         self.ensure_data_dir_exists()
         with open(ofn, 'w') as fp:
-            fp.write(r3.content)
+            fp.write(r4.content)
         print "--> %s" % (ofn)
         return ofn
     
@@ -1313,7 +1349,7 @@ class edXapi(object):
         if not 'type@sequential' in usage_key:
             raise Exception("[get_due_date] block type must be sequential")
         md = self.get_xblock_metadata(usage_key)
-        return md['due']
+        return md.get('due')
 
     def set_due_date(self, usage_key, due_date):
         '''
@@ -1323,6 +1359,63 @@ class edXapi(object):
             raise Exception("[get_due_date] block type must be sequential")
         md = self.set_xblock_metadata(usage_key, {'due': due_date})
         return md
+
+    def set_all_due_dates(self, due_date):
+        '''
+        Set all due dates for sequential blocks in course.
+        Note this can be slow!
+
+        outline is JSON with this format:
+
+        {
+            "id": "block-v1:MITx+8.MechCx_2+course+type@course+block@course", 
+            "category": "course", 
+            "child_info": {
+                "category": "chapter", 
+                "display_name": "Section", 
+                "children": [
+                    {
+                        "id": "block-v1:MITx+8.MechCx_2+course+type@chapter+block@61aa2d64ea5f4b52885ca31cbc318fee", 
+                        "category": "chapter", 
+                        "child_info": {
+                            "category": "sequential", 
+                            "display_name": "Subsection", 
+                            "children": [
+                                {
+                                    "id": "block-v1:MITx+8.MechCx_2+course+type@sequential+block@24c16809abc242a496183e972bb757e3", 
+                                    "category": "sequential", 
+                                    "child_info": {
+                                        "category": "vertical", 
+                                        "display_name": "Unit", 
+                                        "children": [
+                                            {
+                                                "id": "block-v1:MITx+8.MechCx_2+course+type@vertical+block@ef5ff68c2d804a67a0254cbae1b42b70", 
+                                                "category": "vertical", 
+        
+        ...
+        '''
+        print("Changing due dates in all sequentials in course to %s" % due_date)
+        sys.stdout.flush()
+        outline = self.get_outline()	# has course, chapter, and sequential blocks in JSON format
+        counts = defaultdict(int)
+        for chapter in outline['child_info']['children']:
+            counts['chapter'] += 1
+            sys.stdout.write("  Changing due dates in %s" % chapter['id'])
+            sys.stdout.flush()
+            for sequential in chapter['child_info']['children']:
+                usage_key = sequential['id']
+                if not 'type@sequential' in usage_key:
+                    continue
+                old_due = self.get_due_date(usage_key)
+                if old_due:
+                    md = self.set_due_date(usage_key, due_date)
+                    counts['sequential'] += 1
+                else:
+                    counts['had_no_due'] += 1
+                if (counts['sequential'] % 10)==0:
+                    sys.stdout.write("  ...Processed %d chapters and %d sequentials (skipped %s)" % (counts['chapter'], counts['sequential'], counts['had_no_due']))
+                    sys.stdout.flush()
+        return counts
 
     #-----------------------------------------------------------------------------
     # static assets
