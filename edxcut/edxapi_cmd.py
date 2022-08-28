@@ -2,8 +2,8 @@ import sys
 import json
 import argparse
 
-from edxapi import edXapi
-from ccxapi import ccXapi
+from .edxapi import edXapi
+from .ccxapi import ccXapi
 
 #-----------------------------------------------------------------------------
 
@@ -121,18 +121,18 @@ enroll_student <email>      - enroll student in CCX instance
                     course_id=args.course_id, data_dir=args.data_dir, verbose=args.verbose,
                     studio=args.studio, auth=args.auth)
     except Exception as err:
-        print err
-        print "Error accessing OpenEdX site - if you're accessing Studio, did you specify the -S flag?"
+        print(err)
+        print("Error accessing OpenEdX site - if you're accessing Studio, did you specify the -S flag?")
         sys.exit(-1)
 
     ret = None
     if args.data_file:
         args.data = open(args.data_file).read()
         if args.verbose:
-            print("Read data from %s" % args.data_file)
+            print(("Read data from %s" % args.data_file))
 
     if not ea.login_ok:
-        print "Error - login failed, aborting actions"
+        print("Error - login failed, aborting actions")
         sys.exit(-1)
 
     if args.module_id_from_csv:
@@ -144,15 +144,15 @@ enroll_student <email>      - enroll student in CCX instance
             if mid:
                 mids.append(mid)
         mids = list(set(mids))
-        print "Found %d module ID's in csv file %s" % (len(mids), args.module_id_from_csv)
+        print("Found %d module ID's in csv file %s" % (len(mids), args.module_id_from_csv))
         args.ifn += mids
 
     if args.cmd=="list_reports":
         ret = ea.list_reports_for_download()
         if args.verbose:
-            print("ret=%s" % ret)
+            print(("ret=%s" % ret))
         names = [x['name'] for x in ret['downloads']]
-        print json.dumps(names, indent=4)
+        print(json.dumps(names, indent=4))
 
     elif args.cmd=="download_student_state":
         ea.download_student_state_reports(module_ids=args.ifn, date_filter=args.date)
@@ -161,13 +161,13 @@ enroll_student <email>      - enroll student in CCX instance
         module_ids = args.ifn
         for mid in module_ids:
             ret = ea.enqueue_request_for_problem_responses(mid)
-            print "%s -> %s" % (mid, ret)
+            print("%s -> %s" % (mid, ret))
             time.sleep(20)
 
     elif args.cmd=="get_course_info":
         ret = ea.get_basic_course_info()
         if args.verbose:
-            print("course info ret=%s" % ret)
+            print(("course info ret=%s" % ret))
 
     elif args.cmd=="download_course":
         ea.download_course_tarball()
@@ -245,7 +245,7 @@ enroll_student <email>      - enroll student in CCX instance
             try:
                 args.extra_data = json.loads(args.extra_data)
             except Exception as err:
-                print "Error!  Could not parse extra_data argument as JSON, extra_data=%s" % args.extra_data
+                print("Error!  Could not parse extra_data argument as JSON, extra_data=%s" % args.extra_data)
                 sys.exit(-1)
         ret = ea.update_xblock(path=args.ifn, category=args.type, data=args.data, create=args.create, extra_data=args.extra_data)
 
@@ -311,16 +311,16 @@ enroll_student <email>      - enroll student in CCX instance
     # unknown
 
     else:
-        print ("Unknown command %s" % args.cmd)
+        print(("Unknown command %s" % args.cmd))
 
     if args.json_output_html:
-        print ret['html']
+        print(ret['html'])
     elif args.output_srt:
-        print ret
+        print(ret)
     elif args.json_output and ret is not None:
         try:
-            print json.dumps(ret, indent=4)
+            print(json.dumps(ret, indent=4))
         except Exception as err:
-            print("Output is not JSON serializable, ret=%s" % ret)
+            print(("Output is not JSON serializable, ret=%s" % ret))
 
 #-----------------------------------------------------------------------------

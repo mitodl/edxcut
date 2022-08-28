@@ -29,5 +29,5 @@ class make_tests_from_xbundle_files(object):
             if val:
                 cut_spec['config'][ck] = val
 
-        print yaml.dump(cut_spec)
+        print(yaml.dump(cut_spec))
 

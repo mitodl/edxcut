@@ -1,4 +1,4 @@
-from edxapi import edXapi
+from .edxapi import edXapi
 from lxml import etree
 
 class ccXapi(edXapi):
@@ -33,7 +33,7 @@ class ccXapi(edXapi):
             self.ccx_csrf = self.get_ccx_dashboard_csrf()
             self.headers['X-CSRFToken'] = self.ccx_csrf
             if self.verbose:
-                print "Got csrf=%s from ccx coach dashboard" % self.ccx_csrf
+                print("Got csrf=%s from ccx coach dashboard" % self.ccx_csrf)
         headers = {'X-CSRFToken': self.ccx_csrf,
                    'Referer': self.ccx_dashboard_url}
         data = data or {}
@@ -42,7 +42,7 @@ class ccXapi(edXapi):
         if not ret.status_code==200:
             ret = self.ses.get(url, params=data, headers=self.headers)
         if self.verbose:
-            print "[edxapi] do_ccx_dashboard_action url=%s, return=%s" % (url, ret)
+            print("[edxapi] do_ccx_dashboard_action url=%s, return=%s" % (url, ret))
         return ret
 
     def manage_ccx_student(self, action="add", email=None):
@@ -51,7 +51,7 @@ class ccXapi(edXapi):
         '''
         # http://192.168.33.10/courses/ccx-v1:edX+DemoX+Demo_Course+ccx@1/ccx_manage_student
         if self.verbose:
-            print("[ccXapi] enrolling %s" % email)
+            print(("[ccXapi] enrolling %s" % email))
         url = "%s/courses/%s/ccx_manage_student" % (self.BASE, self.ccx_id)
         data = data={'csrfmiddlewaretoken': self.ccx_csrf,
                      'student-action': action}
@@ -92,8 +92,8 @@ class ccXapi(edXapi):
                 row = [ td.text for td in entry.findall(".//th") ]
                 keys = row
                 continue
-            data.append(dict(zip(keys, row)))
+            data.append(dict(list(zip(keys, row))))
         if self.verbose:
-            print json.dumps(data, indent=4)
+            print(json.dumps(data, indent=4))
         return data
     

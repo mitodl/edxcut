@@ -12,7 +12,7 @@ import json
 import traceback
 
 from collections import OrderedDict, defaultdict
-from StringIO import StringIO
+from io import StringIO
 from lxml import etree
 from pysrt import SubRipTime, SubRipItem, SubRipFile
 
@@ -72,9 +72,9 @@ class edXapi(object):
             m = re.search('name="csrfmiddlewaretoken" value="([^"]+)"', r1.content)
             if 0 and m:
                 self.csrf = m.group(1)
-                print("[edXapi.login] using %s for csrf" % self.csrf)
+                print(("[edXapi.login] using %s for csrf" % self.csrf))
             else:
-                print "[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content)
+                print("[edXapi.login] login issue - url=%s, page: %s" % (url, r1.content))
                 raise Exception("[edXapi.login] error - no csrf token in login page")
         self.csrf = self.csrf or self.ses.cookies['csrftoken']
 
@@ -89,10 +89,10 @@ class edXapi(object):
         self.headers = headers
 
         if self.verbose and not r2.status_code==200:
-            print "[edXapi] login ret = ", r2
+            print("[edXapi] login ret = ", r2)
         if not r2.status_code==200:
-            print "[edXapi] Login failed!"
-            print r2.text
+            print("[edXapi] Login failed!")
+            print(r2.text)
             return False
 
         if self.is_studio:
@@ -104,7 +104,7 @@ class edXapi(object):
                 raise Exception("[edXapi] Login failed! ret=%s" % r2.status_code)
 
         if self.debug:
-            print "login ret=%s, %s" % (r2.status_code, r2.text)
+            print("login ret=%s, %s" % (r2.status_code, r2.text))
         self.login_ok = True
         return True
 
@@ -115,52 +115,52 @@ class edXapi(object):
         r1 = initial_ret
         m = re.search('<form id=[^>]+ action="(.*)">', r1.content)
         if not m:
-            print "oops, failed to get form action"
+            print("oops, failed to get form action")
             return
         action = m.group(1)
-        print("action=%s" % action)
+        print(("action=%s" % action))
         rurl = r1.url
-        print("r1 url=%s" % rurl)
+        print(("r1 url=%s" % rurl))
         url = rurl + action
         data = {'user_idp': 'https://idp.touchstonenetwork.net/shibboleth-idp',
                 'Select': 's',
                 }
         r2 = self.ses.post(url, data=data)
         if not "Collaboration Account Login" in r2.content:
-            print "at r2:"
-            print r2.content
+            print("at r2:")
+            print(r2.content)
             return
         m = re.search('<form action="(.*)" ', r2.content)
         if not m:
-            print "oops, failed to get form action"
-            print r2.content
+            print("oops, failed to get form action")
+            print(r2.content)
             return
         action = m.group(1)
-        print("action=%s" % action)
+        print(("action=%s" % action))
         rurl = r2.url
-        print("r2 url=%s" % rurl)
+        print(("r2 url=%s" % rurl))
         # url = rurl + action
         url = rurl
         data = {'j_username': username,
                 'j_password': pw,
                 '_eventId_proceed': 'Login',
         }
-        print "cookies=%s" % self.ses.cookies
+        print("cookies=%s" % self.ses.cookies)
         headers = {'Referer': url,
                    'Origin': rurl,
                    }
-        print "headers=%s" % headers
+        print("headers=%s" % headers)
         r3 = self.ses.post(url, data=data, headers=headers)
         if not "RelayState" in r3.content:
-            print "at r3:"
-            print r3.content
+            print("at r3:")
+            print(r3.content)
             return
         self.headers = headers
         xml = etree.fromstring(r3.content)
         forms = xml.findall(".//form")
         if not forms:
             print ("Missing form in r3")
-            print r3.content
+            print(r3.content)
             return
         form = forms[0]
         action = form.get("action")
@@ -170,9 +170,9 @@ class edXapi(object):
             if name:
                 data[name] = ie.get("value")
         # print ("data=%s" % data)
-        print("action=%s" % action)
+        print(("action=%s" % action))
         r4 = self.ses.post(action, data=data)
-        print r4.content
+        print(r4.content)
         dashboard_url = "%s/dashboard" % self.BASE
         r5 = self.ses.get(dashboard_url)
         #print "r5:"
@@ -227,7 +227,7 @@ class edXapi(object):
         ret = self.ses.get(url)
         csrf = self.ses.cookies['csrftoken']
         if self.verbose:
-            print "[edXapi] get_problem_csrf headers=%s" % ret.headers
+            print("[edXapi] get_problem_csrf headers=%s" % ret.headers)
         return csrf
 
     def get_xblock_json_response(self, handler, url_name, post_data=None):
@@ -289,7 +289,7 @@ class edXapi(object):
         '''
         if not isinstance(responses, list):
             responses = [responses]
-        box_indexes = box_indexes or zip(range(len(responses)), [0]*len(responses))
+        box_indexes = box_indexes or list(zip(list(range(len(responses))), [0]*len(responses)))
         return OrderedDict([ ("%s_%s_%d_%d" % (prefix, url_name, x + x_index_offset, y + y_index_offset) , val) 
                              for ((x,y), val) in zip(box_indexes, responses)])
 
@@ -300,14 +300,14 @@ class edXapi(object):
         if not isinstance(responses, dict):
             responses = self.make_response_dict(url_name, responses, box_indexes=box_indexes)
         post_data = []					# have to send post_data as list of tuples, to accomodate possible duplicate keys
-        for inkey, response in responses.items():	# if any of the responses is a list, that's for a multiple-choice problem allowing multiple reponses
+        for inkey, response in list(responses.items()):	# if any of the responses is a list, that's for a multiple-choice problem allowing multiple reponses
             if isinstance(response, list):
                 for ritem in response:
                     post_data.append(("%s[]" % inkey, ritem))	# duplicate keys, with [] to tell edx-platform server to recreate list
             else:
                 post_data.append((inkey, response))
         if self.verbose > 2:
-            print "[edxapi] do_block_chck_problem: post_data=%s" % post_data
+            print("[edxapi] do_block_chck_problem: post_data=%s" % post_data)
         data = self.get_xblock_json_response("problem_check", url_name, post_data=post_data)
         return data
 
@@ -330,14 +330,14 @@ class edXapi(object):
             self.xblock_csrf = self.get_instructor_dashboard_csrf()
             self.headers['X-CSRFToken'] = self.xblock_csrf
             if self.verbose:
-                print "Got csrf=%s from instructor dashboard" % self.xblock_csrf
+                print("Got csrf=%s from instructor dashboard" % self.xblock_csrf)
         data = data or {}
         self.headers['Referer'] = url
         ret = self.ses.post(url, data=data, headers=self.headers)
         if not ret.status_code==200:
             ret = self.ses.get(url, params=data, headers=self.headers)
         if self.verbose:
-            print "[edxapi] do_instructor_dashboard_action url=%s, return=%s" % (url, ret)
+            print("[edxapi] do_instructor_dashboard_action url=%s, return=%s" % (url, ret))
         return ret
 
     def get_basic_course_info(self):
@@ -347,7 +347,7 @@ class edXapi(object):
         url = "%s#view-course_info" % self.instructor_dashboard_url
         ret = self.ses.get(url)
         if self.verbose:
-            print("course_info ret=%s" % ret)
+            print(("course_info ret=%s" % ret))
         # print ret.content
         parser = etree.HTMLParser()
         xml = etree.parse(StringIO(ret.content), parser).getroot()
@@ -366,7 +366,7 @@ class edXapi(object):
                 belem = felem.find('b')
                 data[field] = belem.text
         if self.verbose:
-            print json.dumps(data, indent=4)
+            print(json.dumps(data, indent=4))
         return data
         
 
@@ -400,7 +400,7 @@ class edXapi(object):
         '''
         self.set_course_id( course_id )
         url = "%s/api/calculate_grades_csv" % (self.instructor_dashboard_url)
-        print "[edXapi] url=%s" % url
+        print("[edXapi] url=%s" % url)
         ret = self.do_instructor_dashboard_action(url)
         try:
             data = ret.json()
@@ -446,11 +446,11 @@ class edXapi(object):
         # Download 
         url = grade_report_dict[ latest_file ]['url']
         ret = self.ses.get(url)
-        print "[edXapi] writing original file"
+        print("[edXapi] writing original file")
         with open(ofn, 'w') as ofp:
             ofp.write( ret.text.encode('utf-8') )
 
-        print '[edXapi] adding course_id %s and date string %s...' % (course_id, date_string)
+        print('[edXapi] adding course_id %s and date string %s...' % (course_id, date_string))
         with open(ofn, 'r') as ofp:
             cnt = 0
             with open(ofn2, 'w') as ofp2:
@@ -463,8 +463,8 @@ class edXapi(object):
                         ofp2.write( newline.encode('utf-8') )
                     cnt = cnt + 1
 
-        print "[edXapi] Latest file is %s (%d bytes)" % (latest_file, len(ret.text))
-        print "[edXapi] Created file %s in %s" % (ofn2, outputdir)
+        print("[edXapi] Latest file is %s (%d bytes)" % (latest_file, len(ret.text)))
+        print("[edXapi] Created file %s in %s" % (ofn2, outputdir))
         os.system('rm -rf %s' % ofn)
 
         return latest_file
@@ -524,7 +524,7 @@ class edXapi(object):
                 continue
             m = re.search('student_state_from_(block-v1_.*\+block@.*)_([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9]+).csv', name)
             if not m:
-                print "[edxapi] download: Warning - unknown filename format %s" % name
+                print("[edxapi] download: Warning - unknown filename format %s" % name)
                 continue
             dlinfo['module_id'] = m.group(1).replace("block-v1_", "block-v1:")
             dlinfo['date'] = m.group(2)
@@ -534,18 +534,18 @@ class edXapi(object):
             downloads = [x for x in downloads if re.search(date_filter, x['date'])]
 
         if self.verbose:
-            print "Looking for:\n", json.dumps(module_ids, indent=4)
+            print("Looking for:\n", json.dumps(module_ids, indent=4))
 
         if module_ids:
             downloads = [x for x in downloads if x['module_id'] in module_ids]
 
         found_mids = [x['module_id'] for x in downloads]
         if self.verbose:
-            print "Downloading:\n", json.dumps(found_mids, indent=4)
+            print("Downloading:\n", json.dumps(found_mids, indent=4))
 
         missing_mids = [x for x in module_ids if not x in found_mids]
         if self.verbose:
-            print "Missing:\n", json.dumps(missing_mids, indent=4)
+            print("Missing:\n", json.dumps(missing_mids, indent=4))
 
         cnt = 0
         for dinfo in downloads:
@@ -557,7 +557,7 @@ class edXapi(object):
                 ofn = '%s/%s' % (self.data_dir, name)
                 with open(ofn, 'w') as ofp:
                     ofp.write(ret.text)
-                print "[%d] Retrieved %s (%d bytes)" % (cnt, ofn, len(ret.text))
+                print("[%d] Retrieved %s (%d bytes)" % (cnt, ofn, len(ret.text)))
                 sys.stdout.flush()
 
     def enqueue_request_for_problem_responses(self, module_id):
@@ -573,13 +573,13 @@ class edXapi(object):
             except Exception as err:
                 return ret
             if "A problem responses report generation task is already in progress." in data.get('status', ''):
-                print data['status']
+                print(data['status'])
                 time.sleep(5)
                 continue
             if 'The problem responses report is being created' in data.get('status', ''):
                 break
             if self.verbose:
-                print "Status: %s" % data.get('status', None)
+                print("Status: %s" % data.get('status', None))
         return data
 
     def do_reset_student_attempts(self, url_name, username=None):
@@ -611,7 +611,7 @@ class edXapi(object):
               }
         r1 = self.do_instructor_dashboard_action(url, params)
         if self.verbose:
-            print "[edXapi] instructor dashboard return = ", r1.status_code
+            print("[edXapi] instructor dashboard return = ", r1.status_code)
     
     def update_forum_role_membership(self, username, role='Administrator'):
         url = "%s/api/update_forum_role_membership" % (self.instructor_dashboard_url)
@@ -621,7 +621,7 @@ class edXapi(object):
               }
         r1 = self.do_instructor_dashboard_action(url, params)
         if self.verbose:
-            print "[edXapi] instructor dashboard return = ", r1.status_code
+            print("[edXapi] instructor dashboard return = ", r1.status_code)
 
     def delete_student_state(self, username, blocks=None):
         '''
@@ -642,13 +642,13 @@ class edXapi(object):
             }
             r2 = self.do_instructor_dashboard_action(url, params)
             if not r2.status_code==200:
-                print "[edXapi] Failed to delete student %s state for block %s" % (username, block)
-                print "="*60
-                print "ERROR!"
-                print r2.status_code
-                print r2.request.headers
+                print("[edXapi] Failed to delete student %s state for block %s" % (username, block))
+                print("="*60)
+                print("ERROR!")
+                print(r2.status_code)
+                print(r2.request.headers)
                 if self.verbose:
-                    print r2.text
+                    print(r2.text)
             
     #-----------------------------------------------------------------------------
     # Studio actions: import and export course, list courses
@@ -667,7 +667,7 @@ class edXapi(object):
         for course in xml.findall('.//li[@class="course-item"]'):
             cid = course.get("data-course-key")
             if self.verbose:
-                print cid  # etree.tostring(course)
+                print(cid)  # etree.tostring(course)
             courses.append(course)
             course_ids.append(cid)
         return {'xml': courses,
@@ -759,7 +759,7 @@ class edXapi(object):
         '''
         self.ensure_studio_site()
         if self.verbose:
-            print "Downloading tar.gz for %s" % (self.course_id)
+            print("Downloading tar.gz for %s" % (self.course_id))
     
         url = '%s/export/%s' % (self.BASE, self.course_id)
         r1 = self.ses.get(url)
@@ -768,7 +768,7 @@ class edXapi(object):
         self.headers['Accept'] = 'application/json, text/javascript, */*; q=0.01'
         r3 = self.ses.post(url, headers=self.headers)	# start the export process - tarball creation takes some time, poll until done
         if r3.status_code==403:
-            print("Sorry, access forbidden for %s" % url)
+            print(("Sorry, access forbidden for %s" % url))
         try:
             r3j = r3.json()
         except Exception as err:
@@ -789,10 +789,10 @@ class edXapi(object):
                 estat = r3j['ExportStatus']
                 if estat==2:
                     print("\n")
-                    print r3j
+                    print(r3j)
                 continue
             eo = r3j['ExportOutput']
-            print("\nRetrieving course tarball from %s" % eo)
+            print(("\nRetrieving course tarball from %s" % eo))
             sys.stdout.flush()
             r4 = self.ses.get(eo)
         except Exception as err:
@@ -804,10 +804,10 @@ class edXapi(object):
                 r3 = self.ses.get(url)
 
         if len(r4.content) < 100:
-            print "--> ERROR!  Content too short, length=%s, content=%s" % (len(r4.content), r4.content)
+            print("--> ERROR!  Content too short, length=%s, content=%s" % (len(r4.content), r4.content))
             return
         if len(r4.content) < 40000 and "Page Not Found" in r4.content:
-            print "--> ERROR!  Page not found, length=%s, content=%s" % (len(r4.content), r4.content)
+            print("--> ERROR!  Page not found, length=%s, content=%s" % (len(r4.content), r4.content))
             return
 
         dt = time.ctime(time.time()).replace(' ','_').replace(':','')
@@ -815,7 +815,7 @@ class edXapi(object):
         self.ensure_data_dir_exists()
         with open(ofn, 'w') as fp:
             fp.write(r4.content)
-        print "--> %s" % (ofn)
+        print("--> %s" % (ofn))
         return ofn
     
     def upload_course_tarball(self, tfn, nwait=20):
@@ -824,7 +824,7 @@ class edXapi(object):
         '''
         self.ensure_studio_site()
         if self.verbose:
-            print "Uploading %s for %s" % (tfn, self.course_id)
+            print("Uploading %s for %s" % (tfn, self.course_id))
     
         tfnbn = os.path.basename(tfn)
         url = '%s/import/%s' % (self.BASE, self.course_id)
@@ -833,7 +833,7 @@ class edXapi(object):
         csrf = self.ses.cookies['csrftoken']
         if self.verbose:
             # print "csrf=%s" % csrf
-            print url
+            print(url)
         headers = {'X-CSRFToken':csrf,
                    'Referer': url,
                    'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -842,8 +842,8 @@ class edXapi(object):
         try:
             r3 = self.ses.post(url, files=files, headers=headers)
         except Exception as err:
-            print "Error %s" % str(err)
-            print "url=%s, files=%s, headers=%s" % (url, files, headers)
+            print("Error %s" % str(err))
+            print("url=%s, files=%s, headers=%s" % (url, files, headers))
             sys.stdout.flush()
             sys.exit(-1)
     
@@ -851,21 +851,21 @@ class edXapi(object):
 
         if self.verbose:
             # print "r3 = ", r3.status_code
-            print "--> %s" % (r3.content)
-            print url
+            print("--> %s" % (r3.content))
+            print(url)
     
         for k in range(nwait):
             r4 = self.ses.get(url)
             if r4.ok:
                 if self.verbose:
-                    print r4.content
+                    print(r4.content)
                 if r4.json()["ImportStatus"]==4:
                     if self.verbose:
-                        print "Done!"
+                        print("Done!")
                     return True
             else:
                 if self.verbose:
-                    print r4
+                    print(r4)
                     sys.stdout.flush()
             time.sleep(2)
         return False
@@ -927,7 +927,7 @@ class edXapi(object):
             raise Exception("Failed to get outline for %s via %s, ret(%s)=%s" % (usage_key, url, ret.status_code, ret.content))
         data = ret.json()
         if self.verbose > 1:
-            print "Outline for '%s' has %d children" % (usage_key, len(data['child_info']['children']))
+            print("Outline for '%s' has %d children" % (usage_key, len(data['child_info']['children'])))
         return data
 
     def get_outline_via_studio_home_page(self, usage_key=None):
@@ -1129,7 +1129,7 @@ class edXapi(object):
             path = None
         if (not usage_key) and path is not None:
             if self.verbose:
-                print "[edXapi.delete_xblock] traversing path=%s" % path
+                print("[edXapi.delete_xblock] traversing path=%s" % path)
             the_block = self._get_block_by_name_from_outline(path=path)
             usage_key = the_block['id']
                 
@@ -1158,11 +1158,11 @@ class edXapi(object):
 
         if (not usage_key) and path is not None:
             if self.verbose:
-                print "[edXapi.delete_xblock] traversing path=%s" % path
+                print("[edXapi.delete_xblock] traversing path=%s" % path)
             the_block = self._get_block_by_name_from_outline(path=path)
             usage_key = the_block['id']
             if self.verbose:
-                print "[edXapi.delete_xblock] deleting block id=%s" % usage_key
+                print("[edXapi.delete_xblock] deleting block id=%s" % usage_key)
         else:
             block = self.get_xblock(usage_key=usage_key)
             csrf = self.ses.cookies['csrftoken']
@@ -1174,7 +1174,7 @@ class edXapi(object):
         if not ret.status_code in [200, 204]:
             raise Exception("Failed to delete %s, ret=%s, url=%s, content=%s" % (usage_key, ret.status_code, url, ret.content[:1000]))
         if self.verbose:
-            print "Deleted %s, ret=%s" % (usage_key, ret.status_code)
+            print("Deleted %s, ret=%s" % (usage_key, ret.status_code))
         return True
 
     def list_xblocks(self, outline=None, category=None, path=None):
@@ -1216,9 +1216,9 @@ class edXapi(object):
                 block_category = block['category']
         titles = [ x['display_name'] for x in blocks ]
         if self.verbose:
-            print "Found %d %ss in %s %s" % (len(blocks), block_category, category, outline['display_name'])
+            print("Found %d %ss in %s %s" % (len(blocks), block_category, category, outline['display_name']))
             for block in blocks:
-                print "    %s -> %s" % (block['display_name'], block['id'])
+                print("    %s -> %s" % (block['display_name'], block['id']))
         return {'blocks': blocks, 'titles': titles}
 
 
@@ -1239,7 +1239,7 @@ class edXapi(object):
         self.ensure_studio_site()
         if not parent_locator and path:
             if self.verbose:
-                print "[edXapi.create_xblock] traversing path=%s" % path
+                print("[edXapi.create_xblock] traversing path=%s" % path)
             if not name:
                 parent = self._get_block_by_name_from_outline(path=path[:-1])
                 name = path[-1]
@@ -1267,19 +1267,19 @@ class edXapi(object):
             msg = "[edXapi] Failed to create new %s in course %s with post_data=%s" % (category, self.course_id, str(post_data)[:200])
             msg += "\nret=%s" % ret.content
             if 0:
-                print "request: ", ret.request
-                print "request history:", ret.history
-                print "request url:", ret.request.url
-                print dir(ret.request)
-                print "request method: ", ret.request.method
-                print "request headers: ", ret.request.headers
+                print("request: ", ret.request)
+                print("request history:", ret.history)
+                print("request url:", ret.request.url)
+                print(dir(ret.request))
+                print("request method: ", ret.request.method)
+                print("request headers: ", ret.request.headers)
             raise Exception(msg)
         rdat = ret.json()
         if data:
             block_id = rdat['locator']
             return self.update_xblock(usage_key=block_id, data=data)
         if self.verbose:
-            print "[edXapi.create_xblock] Created %s '%s'" % (category, name)
+            print("[edXapi.create_xblock] Created %s '%s'" % (category, name))
             # print "--> post data = %s" % json.dumps(post_data, indent=4)
         return rdat
 
@@ -1316,7 +1316,7 @@ class edXapi(object):
                         the_block_id = ret['locator']
                         the_block = self.get_xblock(usage_key=the_block_id)
                         if self.verbose:
-                            print "[edXapi.update_xblock] created block '%s' = %s" % (name, the_block_id)
+                            print("[edXapi.update_xblock] created block '%s' = %s" % (name, the_block_id))
                     outline = the_block
                     cnt += 1
             else:
@@ -1335,7 +1335,7 @@ class edXapi(object):
         self.headers['Referer'] = url
         ret = self.ses.post(url, json=post_data, headers=self.headers)
         if not ret.status_code==200:
-            print("[edXapi.update_xblock] Failure with post_data=%s, headers=%s" % (post_data, self.headers))
+            print(("[edXapi.update_xblock] Failure with post_data=%s, headers=%s" % (post_data, self.headers)))
             raise Exception("[edXapi.update_xblock] Failed to update xblock %s, ret=%s" % (usage_key, ret.status_code))
         return ret.json()
 
@@ -1400,7 +1400,7 @@ class edXapi(object):
         
         ...
         '''
-        print("Changing due dates in all sequentials in course to %s" % due_date)
+        print(("Changing due dates in all sequentials in course to %s" % due_date))
         sys.stdout.flush()
         outline = self.get_outline()	# has course, chapter, and sequential blocks in JSON format
         counts = defaultdict(int)
@@ -1516,7 +1516,7 @@ class edXapi(object):
         if ofn:
             open(ofn, 'w').write(ret.content)
         if self.verbose:
-            print "[edXapi.get_static_asset] Retrieved %s, content-length=%s" % (fn, len(ret.content))
+            print("[edXapi.get_static_asset] Retrieved %s, content-length=%s" % (fn, len(ret.content)))
         return ret.content
 
     def upload_static_asset(self, fn):
@@ -1531,10 +1531,10 @@ class edXapi(object):
         self.headers['Referer'] = url
         ret = self.ses.post(url, files=files, data=data, headers=self.headers)
         if not ret.status_code==200:
-            print('[edXapi.upload_static_asset] Failed, headers=%s, cookies=%s' % (self.headers, self.ses.cookies))
+            print(('[edXapi.upload_static_asset] Failed, headers=%s, cookies=%s' % (self.headers, self.ses.cookies)))
             raise Exception('[edXapi.upload_static_asset] Failed to upload %s, to url=%s, err=%s' % (fn, url, ret.status_code))
         if self.verbose:
-            print "uploaded file %s, ret=%s" % (fn, json.dumps(ret.json(), indent=4))
+            print("uploaded file %s, ret=%s" % (fn, json.dumps(ret.json(), indent=4)))
         return ret.json()
 
     def delete_static_asset(self, asset_key=None, fn=None):
@@ -1564,10 +1564,10 @@ class edXapi(object):
             rj = ret.json()
         except Exception as err:
             if self.verbose:
-                print "[edxapi] warning - cannot get JSON from server output %s" % ret.text
+                print("[edxapi] warning - cannot get JSON from server output %s" % ret.text)
             rj = ret.text
         if self.verbose:
-            print "deleted file %s, ret=%s" % (fn, json.dumps(rj, indent=4))
+            print("deleted file %s, ret=%s" % (fn, json.dumps(rj, indent=4)))
         if ret.status_code==204:
             return 
         return rj
@@ -1631,10 +1631,10 @@ class edXapi(object):
         ret = self.ses.post(url, files=files, data=data, headers=self.headers)
         if not ret.status_code==200:
             if self.verbose:
-                print "[edXapi.upload_transcript] failed, data=%s" % json.dumps(data, indent=4)
+                print("[edXapi.upload_transcript] failed, data=%s" % json.dumps(data, indent=4))
             raise Exception('[edXapi.upload_transcript] Failed to upload %s, to url=%s, err=%s' % (tfn, url, ret.status_code))
         if self.verbose:
-            print "uploaded transcript file %s, ret=%s" % (tfn, json.dumps(ret.json(), indent=4))
+            print("uploaded transcript file %s, ret=%s" % (tfn, json.dumps(ret.json(), indent=4)))
         return ret.json()
 
     @staticmethod
@@ -1662,7 +1662,7 @@ class edXapi(object):
                 end=SubRipTime(milliseconds=sjson_speed_1['end'][i]),
                 text=sjson_speed_1['text'][i]
             )
-            output += (unicode(item))
+            output += (str(item))
             output += '\n'
         return output
 
@@ -1686,13 +1686,13 @@ def eapi_studio():
 def test_course_info(eapi):
     ea = eapi
     data = ea.get_basic_course_info()
-    print json.dumps(data, indent=4)
+    print(json.dumps(data, indent=4))
     assert data["course-name"] == "Demo_Course"
 
 def test_get_video_transcript(eapi):
     ea = eapi
     data = ea.get_video_transcript('636541acbae448d98ab484b028c9a7f6', videoid='o2pLltkrhGM')
-    print json.dumps(data, indent=4)
+    print(json.dumps(data, indent=4))
     assert 'What we have is a voltmeter and an amp meter.' in data['text']
     srt = ea.generate_srt_from_sjson(data)
     assert '00:03:17,220 --> 00:03:20,480' in srt
@@ -1707,7 +1707,7 @@ def test_xb0(eapi):
     ea = eapi
     url_name = "75f9562c77bc4858b61f907bb810d974"
     data = ea.do_xblock_show_answer(url_name)
-    print data
+    print(data)
     assert ('progress_changed' in data)
     assert (len(data['answers']))
 
@@ -1729,23 +1729,23 @@ def test_xb3(eapi):
     ea = eapi
     url_name = "75f9562c77bc4858b61f907bb810d974"
     data = ea.do_xblock_get_problem(url_name)
-    print data
+    print(data)
     assert (len(data['html']))
 
 def test_list_courses():
     ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True)
     data = ea.list_courses()
-    print data['course_ids']
+    print(data['course_ids'])
     assert ('course-v1:edX+DemoX+Demo_Course' in data['course_ids'])
     assert ('xml' in data)
 
 def test_create_course(eapi_studio):
     ea = eapi_studio
     data = ea.create_course('a test course', 'UnivX', 'test101', 'Future2099', nofail=True)
-    print data
+    print(data)
     # assert 'course_key' in data
     data = ea.list_courses()
-    print data['course_ids']
+    print(data['course_ids'])
     ckey = 'course-v1:UnivX+test101+Future2099'
     assert ckey in data['course_ids']
 
@@ -1759,16 +1759,16 @@ def test_create_course(eapi_studio):
     assert ret['data']==html
 
     ret = ea.delete_course(ckey)
-    print ret
+    print(ret)
     data = ea.list_courses()
-    print data['course_ids']
+    print(data['course_ids'])
     assert ckey not in data['course_ids']
 
 def x_test_download_course():
     cid = "course-v1:edX+DemoX+Demo_Course"
     ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=cid)
     ret = ea.download_course_tarball()
-    print "returned %s" % ret
+    print("returned %s" % ret)
     assert (cid in ret)
 
 def x_test_upload_course():
@@ -1777,7 +1777,7 @@ def x_test_upload_course():
     tfn = glob.glob("DATA/COURSE-course-v1:edX+DemoX+Demo_Course___*.tar.gz")[0]
     ea = edXapi("http://192.168.33.10:18010", "staff@example.com", "edx", studio=True, course_id=cid)
     ret = ea.upload_course_tarball(tfn)
-    print "returned %s" % ret
+    print("returned %s" % ret)
     assert ret
 
 def test_course_outline(eapi_studio):
@@ -1925,5 +1925,5 @@ def test_verticals(eapi_studio):
     assert 'Introduction: Video and Sequences' in ret['titles']
 
 if __name__=="__main__":
-    from edxapi_cmd import CommandLine
+    from .edxapi_cmd import CommandLine
     CommandLine()

@@ -8,16 +8,17 @@ import sys
 import pytest
 
 from lxml import etree
-from StringIO import StringIO
+from io import StringIO
 
-import course_tests
-reload(course_tests)
+from . import course_tests
+import importlib
+importlib.reload(course_tests)
 
 AnswerBoxUnitTest = course_tests.AnswerBoxUnitTest
 CourseUnitTestSet = course_tests.CourseUnitTestSet
 
-import edxapi
-reload(edxapi)
+from . import edxapi
+importlib.reload(edxapi)
 
 edXapi = edxapi.edXapi
 
@@ -62,9 +63,9 @@ class CourseUnitTester(object):
         nok = 0
         nbad = 0
         all_url_names = []
-        print "="*60 + " Running %s tests" % self.cutset.ntests
-        print "Tests using site %s and course %s" % (self.site_base_url, self.course_id)
-        print "-" * 60
+        print("="*60 + " Running %s tests" % self.cutset.ntests)
+        print("Tests using site %s and course %s" % (self.site_base_url, self.course_id))
+        print("-" * 60)
         for test in self.cutset.tests:
             cnt += 1
             if test.url_name not in all_url_names:
@@ -72,19 +73,19 @@ class CourseUnitTester(object):
             ret = self.test_problem(abutest=test)
             if ret['ok']:
                 name = "[%s]" % test.name if test.name else ""
-                print "Test %d: OK %s" % (cnt, name)
+                print("Test %d: OK %s" % (cnt, name))
                 nok += 1
             else:
-                print "Test %s: Failure! url_name=%s, responses=%s, expected=%s" % (test.name,
+                print("Test %s: Failure! url_name=%s, responses=%s, expected=%s" % (test.name,
                                                                                     test.url_name,
                                                                                     test.responses,
-                                                                                    test.expected)
-                print "   --> got correctness_list=%s" % ret['correctness_list']
+                                                                                    test.expected))
+                print("   --> got correctness_list=%s" % ret['correctness_list'])
                 nbad += 1
             sys.stdout.flush()
         nprobs = len(all_url_names)
-        print "="*40 + " Tests done"
-        print "%s total tests, on %s unique problems; %s passed, %s failed" % (cnt, nprobs, nok, nbad)
+        print("="*40 + " Tests done")
+        print("%s total tests, on %s unique problems; %s passed, %s failed" % (cnt, nprobs, nok, nbad))
         self.test_results = {'n_tests_ran': cnt,
                              'n_passed': nok,
                              'n_failed': nbad,
@@ -100,7 +101,7 @@ class CourseUnitTester(object):
         '''
         status_divs = []
         correctness_list = []
-        for sn, response in status_names.items():
+        for sn, response in list(status_names.items()):
             correctness = None
             label_type = None
             sn_orig = sn
@@ -179,10 +180,10 @@ class CourseUnitTester(object):
             try:
                 data = self.ea.do_xblock_check_problem(url_name, responses, box_indexes)
             except Exception as err:
-                print "[CourseUnitTester] Failed testing %s (at %s), err=%s" % (url_name,
+                print("[CourseUnitTester] Failed testing %s (at %s), err=%s" % (url_name,
                                                                                 self.ea.problem_url(url_name),
-                                                                                err)
-                print "--> Skipping problem!"
+                                                                                err))
+                print("--> Skipping problem!")
                 return {'ok': False,
                         'data': None,
                         'xml': None,
@@ -207,7 +208,7 @@ class CourseUnitTester(object):
             # <div class="correct " id="status_75f9562c77bc4858b61f907bb810d974_4_1">
             status_names = self.ea.make_response_dict(url_name, responses, prefix="status", box_indexes=box_indexes)
             if self.verbose > 3:
-                print "    stats_names=%s" % status_names
+                print("    stats_names=%s" % status_names)
             try:
                 correctness_list = self.make_correctness_list_from_xml(xml, status_names)
             except Exception as err:
@@ -215,16 +216,16 @@ class CourseUnitTester(object):
                     # try reducing x index offset from 2 to 1 (some versions of edx platform index from 3, some from 2)
                     # for multiple choice problems.
                     if self.verbose:
-                        print ("[CourseUnitTester] test_problem: warning, %s, with status_names=%s; "
-                               "retrying with x index offset = 1" % (str(err), status_names))
+                        print(("[CourseUnitTester] test_problem: warning, %s, with status_names=%s; "
+                               "retrying with x index offset = 1" % (str(err), status_names)))
                     status_names = self.ea.make_response_dict(url_name, responses, prefix="status",
                                                               box_indexes=box_indexes,
                                                               x_index_offset=1)
                     try:
                         correctness_list = self.make_correctness_list_from_xml(xml, status_names)
                     except Exception as err:
-                        print "[CourseUnitTester] test_problem, error with status_names=%s, err=%s" % (status_names, err)
-                        print "--> Skipping problem!"
+                        print("[CourseUnitTester] test_problem, error with status_names=%s, err=%s" % (status_names, err))
+                        print("--> Skipping problem!")
                         return {'ok': False,
                                 'data': None,
                                 'xml': None,
@@ -239,7 +240,7 @@ class CourseUnitTester(object):
                         
         else:
             correctness_list = []
-            print "  --> oops, empty correctness_list; url=%s, ret=%s" % (self.ea.jump_to_url(url_name), data)
+            print("  --> oops, empty correctness_list; url=%s, ret=%s" % (self.ea.jump_to_url(url_name), data))
             xml = None
 
         if 'Error' in data['success']:
@@ -252,7 +253,7 @@ class CourseUnitTester(object):
         else:
             isok = expected==data['success']
         if self.verbose:
-            print "[CourseUnitTester] problem %s responses %s gives correctness %s (%s)" % (url_name, responses, correctness_list, "OK" if isok else "ERROR")
+            print("[CourseUnitTester] problem %s responses %s gives correctness %s (%s)" % (url_name, responses, correctness_list, "OK" if isok else "ERROR"))
         status = {'ok': isok,
                   'data': data,
                   'xml': xml,
@@ -276,10 +277,10 @@ def test_cut1(cut_test_fixture):
     url_name = "75f9562c77bc4858b61f907bb810d974"
     responses = ['43.141', "4500", "5"]
     outcomes = cut.test_problem(url_name, responses, "incorrect")
-    print outcomes
+    print(outcomes)
     assert (outcomes['ok']==True)
     outcomes = cut.test_problem(url_name, ['43.141', "4500", "5"], ["incorrect", "correct", 'correct'])
-    print outcomes
+    print(outcomes)
     assert (outcomes['ok']==True)
     ret = cut.test_problem('0d759dee4f9d459c8956136dbde55f02', "France", "correct")
     assert (ret['ok']==True)
@@ -312,19 +313,19 @@ def test_cut4(cut_test_fixture):
     cut = cut_test_fixture
     url_name = "a0effb954cca4759994f1ac9e9434bf4"
     ret = cut.test_problem(url_name, ["dummy_default", 'choice_2'], ["incorrect", "correct"])
-    print ret
+    print(ret)
     assert ret['ok']
     ret = cut.test_problem(url_name, ["dummy_default", 'choice_2', ['choice_0', 'choice_2']], ["incorrect", "correct", 'correct'])
-    print ret
+    print(ret)
     assert ret['ok']
     ret = cut.test_problem(url_name, ["blue", 'choice_2', ['choice_0', 'choice_2']], ["correct", "correct", 'correct'])
-    print ret
+    print(ret)
     assert ret['ok']
     ret = cut.test_problem(url_name, ["blue", 'choice_2', ['choice_0', 'choice_2']], "correct")
-    print ret
+    print(ret)
     assert ret['ok']
     ret = cut.test_problem(url_name, ["blue", 'choice_2', ['choice_0', 'choice_3']], "incorrect")
-    print ret
+    print(ret)
     assert ret['ok']
 
 def test_cut5(cut_test_fixture):

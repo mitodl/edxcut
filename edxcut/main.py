@@ -5,7 +5,7 @@ Also can be used to create unit tests, from an xbundle file.
 
 import sys
 import argparse
-from course_unit_tester import CourseUnitTester
+from .course_unit_tester import CourseUnitTester
 from collections import defaultdict
 
 #-----------------------------------------------------------------------------
@@ -36,7 +36,7 @@ Examples:
 - ...
 """
     if len(sys.argv)>1 and sys.argv[1]=="edxapi":
-        import edxapi_cmd
+        from . import edxapi_cmd
         return edxapi_cmd.CommandLine(arglist=sys.argv[2:])
 
     parser = argparse.ArgumentParser(description=help_text, formatter_class=argparse.RawTextHelpFormatter)
@@ -55,11 +55,11 @@ Examples:
     if args.cmd=="test":
         counts = defaultdict(int)
         if len(args.ifn) > 1:
-            print "="*70
-            print "Running tests from %d files" % len(args.ifn)
+            print("="*70)
+            print("Running tests from %d files" % len(args.ifn))
         for fn in args.ifn:
-            print "="*70
-            print "==>  Running tests from %s " % fn
+            print("="*70)
+            print("==>  Running tests from %s " % fn)
             cut = CourseUnitTester(site_base_url=args.site_base_url,
                                    username=args.username,
                                    password=args.password,
@@ -67,22 +67,22 @@ Examples:
                                    course_id=args.course_id,
                                    cutfn=fn)
             cut.run_all_tests()
-            for k,v in cut.test_results.items():
+            for k,v in list(cut.test_results.items()):
                 counts[k] += v
-        print "="*70
-        print "Ran tests from %d files" % len(args.ifn)
-        print ("Overall: %s total tests, on %s unique problems; "
+        print("="*70)
+        print("Ran tests from %d files" % len(args.ifn))
+        print(("Overall: %s total tests, on %s unique problems; "
                "%s passed, %s failed" % (counts['n_tests_ran'],
                                          counts['n_problems'],
                                          counts['n_passed'],
-                                         counts['n_failed']))
+                                         counts['n_failed'])))
 
     elif args.cmd=="make_tests":
-        import make_tests
+        from . import make_tests
         make_tests.make_tests_from_xbundle_files(args.ifn, args)
 
     else:
-        print ("Unknown command %s" % args.cmd)
+        print(("Unknown command %s" % args.cmd))
 
 #-----------------------------------------------------------------------------
 

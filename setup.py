@@ -1,5 +1,10 @@
 import glob
+from pathlib import Path
 from setuptools import setup
+
+# read the contents of README file
+this_directory = Path(__file__).parent
+long_description = (this_directory / "README.md").read_text()
 
 setup(
     name='edxcut',
@@ -11,7 +16,7 @@ setup(
     url='http://pypi.python.org/pypi/edxcut/',
     license='LICENSE.txt',
     description='edX course unit tester',
-    long_description=open('README.md').read(),
+    long_description=long_description,
     include_package_data=True,
     entry_points={
         'console_scripts': [
